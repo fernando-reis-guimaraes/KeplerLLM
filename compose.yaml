@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
       pull: true
+      args:
+        ANYTHINGLLM_VERSION: ${ANYTHINGLLM_VERSION:-1.16.1}
       platforms:
         - linux/amd64
         - linux/arm64

@@ -1,8 +1,10 @@
 # KeplerLLM
 
-Thin wrapper around `mintplexlabs/anythingllm:latest` that keeps AnythingLLM settings changed through the UI inside the existing persistent storage volume.
+Thin wrapper around the official AnythingLLM image with KeplerLLM-specific persistence and UI branding.
 
 ## What it changes
+
+### Persistent AnythingLLM UI configuration
 
 AnythingLLM writes UI-managed configuration to `/app/server/.env`. KeplerLLM stores that file at `${STORAGE_DIR}/.env` (normally `/app/server/storage/.env`) and exposes `/app/server/.env` as a symlink to it before starting the original AnythingLLM entrypoint.
 
@@ -16,11 +18,41 @@ No bind mount or separate file mount for `/app/server/.env` is required.
 
 On the first KeplerLLM boot, if `${STORAGE_DIR}/.env` does not exist, the wrapper seeds it from the `.env` shipped in the upstream AnythingLLM image. Future changes made in the AnythingLLM UI are written through the symlink into the persistent volume.
 
+### Model display name
+
+The workspace model picker displays a KeplerLLM branding label instead of the underlying model identifier.
+
+Default:
+
+```text
+Kepler AI
+```
+
+Override it at runtime with:
+
+```text
+KEPLERLLM_MODEL_DISPLAY_NAME=Your Name Here
+```
+
+This only changes the displayed label. The actual AnythingLLM provider and model configuration remain unchanged.
+
+AnythingLLM already hides this picker from non-admin users in multi-user mode; this customization applies where the picker is visible, such as single-user mode and admin sessions.
+
+## Upstream version
+
+The custom frontend is built from the same stable AnythingLLM version used as the base image. The default is currently:
+
+```text
+1.16.1
+```
+
+Override the build version with `ANYTHINGLLM_VERSION` when intentionally upgrading. The branding patch fails the build if its expected upstream source anchors change, forcing the customization to be reviewed instead of silently producing a broken UI.
+
 ## Build and publish
 
 `.envrc` sets `IMAGE_TAG` to the current short Git commit hash. `compose.yaml` publishes both that immutable tag and `latest`.
 
-After committing changes, reload `direnv` so `IMAGE_TAG` follows the new `HEAD`:
+After committing or pulling changes, reload `direnv` so `IMAGE_TAG` follows the new `HEAD`:
 
 ```bash
 direnv reload
@@ -34,7 +66,7 @@ cr.umapps.net/umapps/keplerllm:${IMAGE_TAG}
 cr.umapps.net/umapps/keplerllm:latest
 ```
 
-The Compose build pulls the current upstream base image and builds for both `linux/amd64` and `linux/arm64`.
+The Compose build builds for both `linux/amd64` and `linux/arm64`.
 
 ## CapRover
 
@@ -44,7 +76,13 @@ Use:
 STORAGE_DIR=/app/server/storage
 ```
 
-and keep the named volume:
+Optionally customize the model label:
+
+```text
+KEPLERLLM_MODEL_DISPLAY_NAME=Kepler AI
+```
+
+Keep the named volume:
 
 ```text
 anythingllm-storage -> /app/server/storage
