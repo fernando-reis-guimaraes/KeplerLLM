@@ -1,0 +1,12 @@
+services:
+  keplerllm:
+    image: cr.umapps.net/umapps/keplerllm:${IMAGE_TAG:-beta}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: true
+      platforms:
+        - linux/amd64
+        - linux/arm64
+      tags:
+        - cr.umapps.net/umapps/keplerllm:latest
