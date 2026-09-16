@@ -10,19 +10,9 @@ function replaceExactlyOnce(text, needle, replacement, label) {
   return text.replace(needle, replacement);
 }
 
-const indexHtmlPath = "/src/frontend/index.html";
 const modelPickerPath =
   "/src/frontend/src/components/WorkspaceChat/ChatContainer/WorkspaceModelPicker/index.jsx";
-
-let indexHtml = fs.readFileSync(indexHtmlPath, "utf8");
-const mainScript = '    <script type="module" src="/src/main.jsx"></script>';
-indexHtml = replaceExactlyOnce(
-  indexHtml,
-  mainScript,
-  `    <script src="/keplerllm-config.js"></script>\n${mainScript}`,
-  "frontend/index.html"
-);
-fs.writeFileSync(indexHtmlPath, indexHtml);
+const metaGeneratorPath = "/src/server/utils/boot/MetaGenerator.js";
 
 let modelPicker = fs.readFileSync(modelPickerPath, "utf8");
 const functionStart =
@@ -35,5 +25,16 @@ modelPicker = replaceExactlyOnce(
   "WorkspaceModelPicker"
 );
 fs.writeFileSync(modelPickerPath, modelPicker);
+
+let metaGenerator = fs.readFileSync(metaGeneratorPath, "utf8");
+const appScript =
+  '            <script type="module" crossorigin src="/index.js"></script>';
+metaGenerator = replaceExactlyOnce(
+  metaGenerator,
+  appScript,
+  `            <script src="/keplerllm-config.js"></script>\n${appScript}`,
+  "MetaGenerator"
+);
+fs.writeFileSync(metaGeneratorPath, metaGenerator);
 
 console.log("Applied KeplerLLM model display-name branding patch.");

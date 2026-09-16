@@ -25,6 +25,7 @@ RUN rm -rf /app/server/public && \
     mkdir -p /app/server/public && \
     chown anythingllm:anythingllm /app/server/public
 COPY --chown=anythingllm:anythingllm --from=frontend-build /src/frontend/dist /app/server/public
+COPY --chown=anythingllm:anythingllm --from=frontend-build /src/server/utils/boot/MetaGenerator.js /app/server/utils/boot/MetaGenerator.js
 COPY keplerllm-entrypoint.sh /usr/local/bin/keplerllm-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/keplerllm-entrypoint.sh
 
