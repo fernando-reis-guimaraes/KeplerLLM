@@ -13,6 +13,8 @@ function replaceExactlyOnce(text, needle, replacement, label) {
 const modelPickerPath =
   "/src/frontend/src/components/WorkspaceChat/ChatContainer/WorkspaceModelPicker/index.jsx";
 const metaGeneratorPath = "/src/server/utils/boot/MetaGenerator.js";
+const openAiOptionsPath =
+  "/src/frontend/src/components/LLMSelection/OpenAiOptions/index.jsx";
 
 let modelPicker = fs.readFileSync(modelPickerPath, "utf8");
 const functionStart =
@@ -37,4 +39,18 @@ metaGenerator = replaceExactlyOnce(
 );
 fs.writeFileSync(metaGeneratorPath, metaGenerator);
 
-console.log("Applied KeplerLLM model display-name branding patch.");
+let openAiOptions = fs.readFileSync(openAiOptionsPath, "utf8");
+const unsortedOpenAiModels =
+  "              {groupedModels[organization].map((model) => (";
+const sortedOpenAiModels = `              {[...groupedModels[organization]]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((model) => (`;
+openAiOptions = replaceExactlyOnce(
+  openAiOptions,
+  unsortedOpenAiModels,
+  sortedOpenAiModels,
+  "OpenAI model picker sorting"
+);
+fs.writeFileSync(openAiOptionsPath, openAiOptions);
+
+console.log("Applied KeplerLLM UI branding and OpenAI model sorting patch.");
