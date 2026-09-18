@@ -2,12 +2,11 @@
 
 > Canonical list in English (US). Portuguese version: [KeplerLLM-TODO.pt-BR.md](KeplerLLM-TODO.pt-BR.md).
 
-This file tracks planned work for the clean KeplerLLM reimplementation. It is not part of the functional specification in `KeplerLLM.md`.
+This file tracks outstanding KeplerLLM-specific work. It is not part of the functional specification in `KeplerLLM.md`.
 
 ## Planned
 
-- [ ] Rebrand user-visible `AnythingLLM` references to `KeplerLLM` (UI strings, emails, titles, descriptions, help texts). Keep package names, imports, code identifiers, and API contracts unchanged wherever renaming would alter software behavior.
-- [ ] Define clean reimplementation prompt from `KeplerLLM.md` plus this list.
+No pending items are currently tracked here.
 
 ## Documentation rule
 

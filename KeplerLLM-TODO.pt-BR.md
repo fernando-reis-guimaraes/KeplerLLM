@@ -2,12 +2,11 @@
 
 > Tradução em português. Lista canônica em inglês (US): [KeplerLLM-TODO.md](KeplerLLM-TODO.md).
 
-Este arquivo acompanha o trabalho planejado para a clean reimplementation do KeplerLLM. Não faz parte da functional specification em `KeplerLLM.md`.
+Este arquivo acompanha o trabalho pendente específico do KeplerLLM. Não faz parte da functional specification em `KeplerLLM.md`.
 
 ## Planned
 
-- [ ] Trocar referências user-visible de `AnythingLLM` para `KeplerLLM` (UI strings, emails, titles, descriptions, help texts). Manter package names, imports, code identifiers e API contracts inalterados sempre que renomear puder alterar o software behavior.
-- [ ] Definir o clean reimplementation prompt a partir do `KeplerLLM.md` mais esta lista.
+Nenhum item pendente está sendo acompanhado aqui no momento.
 
 ## Documentation rule
 
