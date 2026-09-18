@@ -17,6 +17,8 @@
  * static property and will not be reloaded until the page is loaded AND #customConfig is explicitly null. So anytime a setting
  * for meta-props is updated you should get this singleton class and call `.clearConfig` so the next page load will show the new props.
  */
+const { keplerllmConfigScript } = require("./keplerllmConfig");
+
 class MetaGenerator {
   name = "MetaGenerator";
 
@@ -311,6 +313,7 @@ class MetaGenerator {
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             ${this.#assembleMeta()}
+            ${keplerllmConfigScript()}
             <script type="module" crossorigin src="/index.js"></script>
             <link rel="stylesheet" href="/index.css">
           </head>
