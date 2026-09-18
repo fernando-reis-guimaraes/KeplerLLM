@@ -4,7 +4,7 @@
 
 KeplerLLM is a thin fork/overlay on top of AnythingLLM. Keep the fork delta explicit and documented.
 
-Whenever you make a KeplerLLM-specific change, update `README.md` in the same change/commit so the **Fork changes** section accurately documents the current behavior.
+Whenever you make a KeplerLLM-specific change, update `KeplerLLM.md` and `KeplerLLM.pt-BR.md` in the same change/commit so the **Fork changes** section accurately documents the current behavior.
 
 This includes, at minimum:
 
