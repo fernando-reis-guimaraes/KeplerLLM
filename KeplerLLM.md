@@ -1,6 +1,6 @@
 # KeplerLLM
 
-> Canonical specification in English (US). Portuguese version: [KEPLERLLM.pt-BR.md](KEPLERLLM.pt-BR.md).
+> Canonical specification in English (US). Portuguese version: [KeplerLLM.pt-BR.md](KeplerLLM.pt-BR.md).
 
 KeplerLLM is a fork of AnythingLLM. It preserves upstream behavior except for the fork changes defined below.
 

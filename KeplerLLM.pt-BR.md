@@ -1,6 +1,6 @@
 # KeplerLLM
 
-> Tradução em português. Especificação canônica em inglês (US): [README.md](README.md).
+> Tradução em português. Especificação canônica em inglês (US): [KeplerLLM.md](KeplerLLM.md).
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
