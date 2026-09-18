@@ -1,3 +1,8 @@
+// KeplerLLM fork: link the runtime .env to the persistent storage volume
+// before dotenv loads so UI-managed configuration survives restarts.
+// Development keeps the upstream .env.development flow untouched.
+if (process.env.NODE_ENV !== "development")
+  require("./utils/boot/persistentEnv")();
 process.env.NODE_ENV === "development"
   ? require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` })
   : require("dotenv").config();
