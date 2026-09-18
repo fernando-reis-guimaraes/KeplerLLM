@@ -10,6 +10,7 @@ import {
   HouseLine,
   Info,
   LinkSimple,
+  WhatsappLogo,
 } from "@phosphor-icons/react";
 import React, { useEffect, useState } from "react";
 import SettingsButton from "../SettingsButton";
@@ -21,6 +22,7 @@ export const MAX_ICONS = 3;
 export const ICON_COMPONENTS = {
   BookOpen: BookOpen,
   DiscordLogo: DiscordLogo,
+  WhatsappLogo: WhatsappLogo,
   GithubLogo: GithubLogo,
   Envelope: Envelope,
   LinkSimple: LinkSimple,
@@ -83,15 +85,15 @@ export default function Footer() {
           </div>
           <div className="flex w-fit">
             <Link
-              to={paths.discord()}
+              to={paths.whatsapp()}
               target="_blank"
               rel="noreferrer"
               className="transition-all duration-300 p-2 rounded-full bg-theme-sidebar-footer-icon hover:bg-theme-sidebar-footer-icon-hover"
-              aria-label="Join our Discord server"
+              aria-label="Chat with us on WhatsApp"
               data-tooltip-id="footer-item"
-              data-tooltip-content="Join the KeplerLLM Discord"
+              data-tooltip-content="Chat with KeplerLLM on WhatsApp"
             >
-              <DiscordLogo
+              <WhatsappLogo
                 weight="fill"
                 className="h-5 w-5 text-white light:text-slate-800"
               />

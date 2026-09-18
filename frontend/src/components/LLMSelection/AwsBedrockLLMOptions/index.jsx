@@ -27,7 +27,7 @@ export default function AwsBedrockLLMOptions({ settings }) {
               Connect to AWS Bedrock using the OpenAI-compatible Mantle API.
               <br />
               <a
-                href="https://docs.anythingllm.com/setup/llm-configuration/cloud/aws-bedrock"
+                href="https://ultra-mega-apps.com/setup/llm-configuration/cloud/aws-bedrock"
                 target="_blank"
                 className="underline flex gap-x-1 items-center"
                 rel="noreferrer"

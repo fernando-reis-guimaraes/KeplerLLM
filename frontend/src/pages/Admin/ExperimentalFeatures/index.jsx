@@ -265,17 +265,17 @@ function FeatureVerification({ children }) {
                   Access to any features requires approval of this modal. If you
                   would like to read more you can refer to{" "}
                   <a
-                    href="https://docs.anythingllm.com/beta-preview/overview"
+                    href="https://ultra-mega-apps.com/beta-preview/overview"
                     className="underline text-blue-500"
                   >
-                    docs.anythingllm.com
+                    ultra-mega-apps.com
                   </a>{" "}
-                  or email{" "}
+                  or chat{" "}
                   <a
-                    href="mailto:team@mintplexlabs.com"
+                    href="https://wa.me/13025505015"
                     className="underline text-blue-500"
                   >
-                    team@mintplexlabs.com
+                    +1 302 550 5015
                   </a>
                 </p>
               </div>

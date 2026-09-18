@@ -31,7 +31,7 @@ class CometApiLLM {
       baseURL: this.basePath,
       apiKey: process.env.COMETAPI_LLM_API_KEY ?? null,
       defaultHeaders: {
-        "HTTP-Referer": "https://anythingllm.com",
+        "HTTP-Referer": "https://ultra-mega-apps.com",
         "X-CometAPI-Source": "anythingllm",
       },
     });

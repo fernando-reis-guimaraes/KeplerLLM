@@ -257,7 +257,7 @@ class Provider {
           configuration: {
             baseURL: "https://openrouter.ai/api/v1",
             defaultHeaders: {
-              "HTTP-Referer": "https://anythingllm.com",
+              "HTTP-Referer": "https://ultra-mega-apps.com",
               "X-Title": "KeplerLLM",
             },
           },

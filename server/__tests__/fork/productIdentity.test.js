@@ -75,4 +75,24 @@ describe("KeplerLLM product identity in user-visible text", () => {
     );
     expect(openapi.info.title).toBe("KeplerLLM Developer API");
   });
+
+  it("points external product links at KeplerLLM properties", () => {
+    const paths = readRepoFile("frontend", "src", "utils", "paths.js");
+    expect(paths).toContain('"https://github.com/ultra-mega-apps"');
+    expect(paths).toContain('"https://wa.me/13025505015"');
+    expect(paths).toContain('"https://ultra-mega-apps.com');
+    expect(paths).not.toContain("discord.com/invite");
+    expect(paths).not.toContain("mintplexlabs.com");
+    expect(paths).not.toContain("Mintplex-Labs");
+
+    const footer = readRepoFile(
+      "frontend",
+      "src",
+      "components",
+      "Footer",
+      "index.jsx"
+    );
+    expect(footer).toContain("paths.whatsapp()");
+    expect(footer).not.toContain("paths.discord()");
+  });
 });

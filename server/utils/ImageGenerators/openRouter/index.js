@@ -17,7 +17,7 @@ class OpenRouterImageGenerator extends BaseImageGenerator {
         baseURL: "https://openrouter.ai/api/v1",
         apiKey: process.env.IMAGE_GEN_OPENROUTER_API_KEY,
         defaultHeaders: {
-          "HTTP-Referer": "https://anythingllm.com",
+          "HTTP-Referer": "https://ultra-mega-apps.com",
           "X-Title": "KeplerLLM",
         },
       }),

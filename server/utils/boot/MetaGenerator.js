@@ -83,7 +83,7 @@ class MetaGenerator {
       { tag: "meta", props: { property: "og:type", content: "website" } },
       {
         tag: "meta",
-        props: { property: "og:url", content: "https://anythingllm.com" },
+        props: { property: "og:url", content: "https://ultra-mega-apps.com" },
       },
       {
         tag: "meta",
@@ -115,7 +115,10 @@ class MetaGenerator {
       },
       {
         tag: "meta",
-        props: { property: "twitter:url", content: "https://anythingllm.com" },
+        props: {
+          property: "twitter:url",
+          content: "https://ultra-mega-apps.com",
+        },
       },
       {
         tag: "meta",

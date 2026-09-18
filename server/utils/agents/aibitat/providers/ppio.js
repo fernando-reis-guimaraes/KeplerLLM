@@ -19,7 +19,7 @@ class PPIOProvider extends InheritMultiple([Provider, UnTooled]) {
       baseURL: "https://api.ppinfra.com/v3/openai",
       apiKey: process.env.PPIO_API_KEY,
       defaultHeaders: {
-        "HTTP-Referer": "https://anythingllm.com",
+        "HTTP-Referer": "https://ultra-mega-apps.com",
         "X-API-Source": "anythingllm",
       },
     });
