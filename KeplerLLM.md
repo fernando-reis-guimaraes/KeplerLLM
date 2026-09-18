@@ -188,6 +188,30 @@ Do not put credentials in source files.
 Leave the skill inactive for review.
 ```
 
+### Requirement 5 - Product name in user-visible text
+
+#### Objective
+
+Present KeplerLLM as the product name everywhere the user can see it, while keeping every technical contract identical to upstream.
+
+#### Observable behavior
+
+- UI strings, titles, descriptions, help texts, notification defaults, the browser tab title, and the PWA manifest show KeplerLLM instead of AnythingLLM.
+- Generated artifacts carry KeplerLLM branding (exported chats, office documents, chat widget defaults).
+- Bot messages and developer API documentation are titled KeplerLLM.
+
+#### Rules and limits
+
+- Text-only change. Package names, imports, identifiers, file paths, storage keys, localStorage keys, API routes, request/response contracts, provider slugs (including `anythingllm-router`), integration header tokens, and upstream URLs remain unchanged.
+- Logo artwork and static media assets are unchanged.
+- The embed widget (`embed/`) and the browser extension (`browser-extension/`) are upstream git submodules pinned to Mintplex-Labs repositories, so their runtime text is out of scope until those projects are forked or vendored. Their committed build artifacts under `frontend/public/embed/` refresh on the next embed build.
+- There are no product email templates in the codebase; the rule applies to bot and notification messages instead.
+
+#### Out of scope
+
+- Renaming upstream services, repositories, or documentation URLs.
+- Changing Community Hub imports, which remain administrative.
+
 ## Appendix - Operational reference
 
 This appendix records only the runtime and publishing facts needed to operate the fork. It does not describe implementation.
