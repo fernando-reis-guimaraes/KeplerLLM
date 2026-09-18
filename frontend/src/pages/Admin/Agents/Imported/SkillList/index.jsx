@@ -46,7 +46,11 @@ export default function ImportedSkillList({
           <div className="text-sm font-light">{sentenceCase(config.name)}</div>
           <div className="flex items-center gap-x-2">
             <div className="text-sm text-theme-text-secondary font-medium">
-              {config.active ? "On" : "Off"}
+              {config.keplerllmPendingReview && !config.active
+                ? "Pending review"
+                : config.active
+                  ? "On"
+                  : "Off"}
             </div>
             <CaretRight
               size={14}

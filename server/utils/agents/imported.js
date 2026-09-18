@@ -7,6 +7,13 @@ const pluginsPath =
   process.env.NODE_ENV === "development"
     ? path.resolve(__dirname, "../../storage/plugins/agent-skills")
     : path.resolve(process.env.STORAGE_DIR, "plugins", "agent-skills");
+// KeplerLLM fork: staging root for agent-authored Custom Skill drafts.
+// Drafts live here until a human promotes them through the admin toggle.
+// They are never loaded, executed or scheduled from this location.
+const authoredPluginsPath =
+  process.env.NODE_ENV === "development"
+    ? path.resolve(__dirname, "../../storage/anythingllm-fs/agent-skills")
+    : path.resolve(process.env.STORAGE_DIR, "anythingllm-fs", "agent-skills");
 const sharedWebScraper = new CollectorApi();
 
 class ImportedPlugin {
@@ -43,18 +50,23 @@ class ImportedPlugin {
     return new ImportedPlugin(config);
   }
 
-  static isValidLocation(pathToValidate) {
-    if (!isWithin(pluginsPath, pathToValidate)) return false;
+  static isValidLocation(pathToValidate, rootPath = pluginsPath) {
+    if (!isWithin(rootPath, pathToValidate)) return false;
     if (!fs.existsSync(pathToValidate)) return false;
     return true;
   }
 
   /**
-   * Checks if the plugin folder exists and if it does not, creates the folder.
+   * Checks if the plugin folders exist and if they do not, creates them.
+   * Both the administrative root and the KeplerLLM draft staging root
+   * are created automatically when first needed.
    */
   static checkPluginFolderExists() {
-    const dir = path.resolve(pluginsPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    for (const dir of [pluginsPath, authoredPluginsPath]) {
+      const resolvedDir = path.resolve(dir);
+      if (!fs.existsSync(resolvedDir))
+        fs.mkdirSync(resolvedDir, { recursive: true });
+    }
     return;
   }
 
@@ -82,64 +94,182 @@ class ImportedPlugin {
 
   /**
    * Lists all imported plugins.
+   * Installed administrative skills are listed first, followed by
+   * KeplerLLM agent-authored drafts staged for human review. Drafts are
+   * always reported inactive with a pending-review marker, even when
+   * their plugin.json claims to be active. On hubId collisions the
+   * installed skill wins. Folders without a parseable plugin.json
+   * identity are ignored.
    * @returns {Array} - array of plugin configurations (JSON).
    */
   static listImportedPlugins() {
     const plugins = [];
+    const seenHubIds = new Set();
     this.checkPluginFolderExists();
-    if (!fs.existsSync(pluginsPath)) return plugins;
 
-    const folders = fs.readdirSync(path.resolve(pluginsPath));
-    for (const folder of folders) {
-      const configLocation = path.resolve(
-        pluginsPath,
-        normalizePath(folder),
-        "plugin.json"
-      );
-      if (!this.isValidLocation(configLocation)) continue;
-      const config = safeJsonParse(fs.readFileSync(configLocation, "utf8"));
-      plugins.push(config);
-    }
+    const appendPluginsFrom = (rootPath, pendingReview = false) => {
+      if (!fs.existsSync(rootPath)) return;
+      const folders = fs.readdirSync(path.resolve(rootPath));
+      for (const folder of folders) {
+        const configLocation = path.resolve(
+          rootPath,
+          normalizePath(folder),
+          "plugin.json"
+        );
+        if (!this.isValidLocation(configLocation, rootPath)) continue;
+        const config = safeJsonParse(
+          fs.readFileSync(configLocation, "utf8"),
+          null
+        );
+        if (!config?.hubId || seenHubIds.has(config.hubId)) continue;
+        seenHubIds.add(config.hubId);
+        plugins.push(
+          pendingReview
+            ? {
+                ...config,
+                active: false,
+                keplerllmPendingReview: true,
+                keplerllmSource: "agent-authored",
+              }
+            : config
+        );
+      }
+    };
+
+    appendPluginsFrom(pluginsPath);
+    appendPluginsFrom(authoredPluginsPath, true);
     return plugins;
   }
 
   /**
    * Updates a plugin configuration.
+   * Installed skills keep the upstream behavior. KeplerLLM drafts stay
+   * inactive on plain edits: writing active:true into a draft file never
+   * makes it executable. Only an explicit activation through the admin
+   * Custom Skill toggle promotes the draft into the executable root, and
+   * promotion fails instead of overwriting when the folder identity
+   * mismatches plugin.json, when handler.js is missing, or when an
+   * installed skill with the same identity already exists.
    * @param {string} hubId - The hub ID of the plugin.
    * @param {object} config - The configuration to update.
    * @returns {object} - The updated configuration.
    */
   static updateImportedPlugin(hubId, config) {
-    const configLocation = path.resolve(
+    // Both skill directories exist from here on, including the executable
+    // root when a draft is promoted into it for the first time.
+    this.checkPluginFolderExists();
+    const normalizedHubId = normalizePath(hubId);
+    const primaryConfigLocation = path.resolve(
       pluginsPath,
-      normalizePath(hubId),
+      normalizedHubId,
       "plugin.json"
     );
-    if (!this.isValidLocation(configLocation)) return;
+    const authoredConfigLocation = path.resolve(
+      authoredPluginsPath,
+      normalizedHubId,
+      "plugin.json"
+    );
 
+    const isPrimary = this.isValidLocation(primaryConfigLocation, pluginsPath);
+    const isAuthored = this.isValidLocation(
+      authoredConfigLocation,
+      authoredPluginsPath
+    );
+    if (!isPrimary && !isAuthored) return;
+
+    const configLocation = isPrimary
+      ? primaryConfigLocation
+      : authoredConfigLocation;
     const currentConfig = safeJsonParse(
       fs.readFileSync(configLocation, "utf8"),
       null
     );
     if (!currentConfig) return;
 
-    const { hubId: _drop, ...safeConfig } = config;
-    const updatedConfig = { ...currentConfig, ...safeConfig };
-    fs.writeFileSync(configLocation, JSON.stringify(updatedConfig, null, 2));
+    // API-supplied identity and review markers can never escalate a draft.
+    const {
+      hubId: _dropHubId,
+      keplerllmPendingReview: _dropPendingReview,
+      keplerllmSource: _dropSource,
+      ...safeConfig
+    } = config;
+
+    if (isPrimary) {
+      const updatedConfig = { ...currentConfig, ...safeConfig };
+      fs.writeFileSync(configLocation, JSON.stringify(updatedConfig, null, 2));
+      return updatedConfig;
+    }
+
+    const wantsActivation = safeConfig.active === true;
+    const updatedConfig = {
+      ...currentConfig,
+      ...safeConfig,
+      hubId,
+      active: false,
+    };
+
+    if (!wantsActivation) {
+      fs.writeFileSync(configLocation, JSON.stringify(updatedConfig, null, 2));
+      return {
+        ...updatedConfig,
+        keplerllmPendingReview: true,
+        keplerllmSource: "agent-authored",
+      };
+    }
+
+    if (currentConfig.hubId !== hubId) {
+      throw new Error(
+        `Agent-authored skill hubId mismatch: folder '${hubId}' contains '${currentConfig.hubId}'.`
+      );
+    }
+
+    const authoredFolder = path.dirname(authoredConfigLocation);
+    const authoredHandler = path.resolve(authoredFolder, "handler.js");
+    if (!this.isValidLocation(authoredHandler, authoredPluginsPath)) {
+      throw new Error(
+        `Agent-authored skill '${hubId}' cannot be promoted without handler.js.`
+      );
+    }
+
+    const targetFolder = path.resolve(pluginsPath, normalizedHubId);
+    if (!isWithin(pluginsPath, targetFolder)) {
+      throw new Error(`Invalid agent-authored skill path for '${hubId}'.`);
+    }
+    if (fs.existsSync(targetFolder)) {
+      throw new Error(
+        `Cannot promote agent-authored skill '${hubId}': an administrative skill with the same hubId already exists.`
+      );
+    }
+
+    updatedConfig.active = true;
+    fs.writeFileSync(
+      authoredConfigLocation,
+      JSON.stringify(updatedConfig, null, 2)
+    );
+    fs.renameSync(authoredFolder, targetFolder);
     return updatedConfig;
   }
 
   /**
    * Deletes a plugin. Removes the entire folder of the object.
+   * Works for either an installed skill or a KeplerLLM pending draft.
    * @param {string} hubId - The hub ID of the plugin.
    * @returns {boolean} - True if the plugin was deleted, false otherwise.
    */
   static deletePlugin(hubId) {
     if (!hubId) throw new Error("No plugin hubID passed.");
-    const pluginFolder = path.resolve(pluginsPath, normalizePath(hubId));
-    if (!this.isValidLocation(pluginFolder)) return;
-    fs.rmSync(pluginFolder, { recursive: true });
-    return true;
+    const normalizedHubId = normalizePath(hubId);
+    const candidates = [
+      [pluginsPath, path.resolve(pluginsPath, normalizedHubId)],
+      [authoredPluginsPath, path.resolve(authoredPluginsPath, normalizedHubId)],
+    ];
+
+    for (const [rootPath, pluginFolder] of candidates) {
+      if (!this.isValidLocation(pluginFolder, rootPath)) continue;
+      fs.rmSync(pluginFolder, { recursive: true });
+      return true;
+    }
+    return;
   }
 
   /**

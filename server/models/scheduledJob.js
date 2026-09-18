@@ -430,7 +430,11 @@ const ScheduledJob = {
     }
 
     // Custom/imported skills category
-    const importedPlugins = ImportedPlugin.listImportedPlugins();
+    // KeplerLLM fork: agent-authored drafts pending review are never
+    // schedulable. Only installed skills reach Scheduled Job tool selection.
+    const importedPlugins = ImportedPlugin.listImportedPlugins().filter(
+      (plugin) => !plugin.keplerllmPendingReview
+    );
     if (importedPlugins.length > 0) {
       const customSkillItems = importedPlugins.map((plugin) => ({
         id: `@@${plugin.hubId}`,
