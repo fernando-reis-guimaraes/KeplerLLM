@@ -58,6 +58,17 @@ describe("KeplerLLM product identity in user-visible text", () => {
     );
   });
 
+  it("defaults the embed widget text to KeplerLLM", () => {
+    const scriptAttributes = readRepoFile(
+      "embed",
+      "src",
+      "hooks",
+      "useScriptAttributes.js"
+    );
+    expect(scriptAttributes).toContain("Powered by KeplerLLM");
+    expect(scriptAttributes).toContain("KeplerLLM Chat Assistant");
+  });
+
   it("titles the developer API documentation as KeplerLLM", () => {
     const openapi = JSON.parse(
       readRepoFile("server", "swagger", "openapi.json")

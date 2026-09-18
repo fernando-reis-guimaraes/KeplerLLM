@@ -1,7 +1,7 @@
 [submodule "browser-extension"]
 	path = browser-extension
-	url = https://github.com/Mintplex-Labs/anythingllm-extension.git
+	url = https://github.com/fernando-reis-guimaraes/KeplerLLM_Browser-Extension.git
 [submodule "embed"]
 	path = embed
-	url = https://github.com/Mintplex-Labs/anythingllm-embed.git
+	url = https://github.com/fernando-reis-guimaraes/KeplerLLM_Embed.git
 	branch = main

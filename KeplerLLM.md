@@ -204,7 +204,7 @@ Present KeplerLLM as the product name everywhere the user can see it, while keep
 
 - Text-only change. Package names, imports, identifiers, file paths, storage keys, localStorage keys, API routes, request/response contracts, provider slugs (including `anythingllm-router`), integration header tokens, and upstream URLs remain unchanged.
 - Logo artwork and static media assets are unchanged.
-- The embed widget (`embed/`) and the browser extension (`browser-extension/`) are upstream git submodules pinned to Mintplex-Labs repositories, so their runtime text is out of scope until those projects are forked or vendored. Their committed build artifacts under `frontend/public/embed/` refresh on the next embed build.
+- The embed widget and the browser extension live in forked repositories (`frginbox/KeplerLLM_Embed`, `frginbox/KeplerLLM_Browser-Extension`, with personal forks under `fernando-reis-guimaraes/`), wired as git submodules. Their committed widget build under `frontend/public/embed/` is regenerated from the forked embed source.
 - There are no product email templates in the codebase; the rule applies to bot and notification messages instead.
 
 #### Out of scope
