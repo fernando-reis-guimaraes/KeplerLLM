@@ -1,5 +1,7 @@
 # KeplerLLM
 
+> Tradução em português. Especificação canônica em inglês (US): [README.md](README.md).
+
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
 O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering e agent-authored Custom Skill staging com human approval.
