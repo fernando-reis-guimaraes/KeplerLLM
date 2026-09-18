@@ -67,7 +67,7 @@ export default {
     return "https://ultra-mega-apps.com/features/chat-modes";
   },
   supportContact: () => {
-    return "https://wa.me/13025505015";
+    return "mailto:support@ultra-mega-apps.com";
   },
   hosting: () => {
     return "https://ultra-mega-apps.com";

@@ -80,6 +80,7 @@ describe("KeplerLLM product identity in user-visible text", () => {
     const paths = readRepoFile("frontend", "src", "utils", "paths.js");
     expect(paths).toContain('"https://github.com/ultra-mega-apps"');
     expect(paths).toContain('"https://wa.me/13025505015"');
+    expect(paths).toContain('"mailto:support@ultra-mega-apps.com"');
     expect(paths).toContain('"https://ultra-mega-apps.com');
     expect(paths).not.toContain("discord.com/invite");
     expect(paths).not.toContain("mintplexlabs.com");

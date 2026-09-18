@@ -270,12 +270,12 @@ function FeatureVerification({ children }) {
                   >
                     ultra-mega-apps.com
                   </a>{" "}
-                  or chat{" "}
+                  or email{" "}
                   <a
-                    href="https://wa.me/13025505015"
+                    href="mailto:support@ultra-mega-apps.com"
                     className="underline text-blue-500"
                   >
-                    +1 302 550 5015
+                    support@ultra-mega-apps.com
                   </a>
                 </p>
               </div>

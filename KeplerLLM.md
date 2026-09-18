@@ -199,7 +199,7 @@ Present KeplerLLM as the product name everywhere the user can see it, while keep
 - UI strings, titles, descriptions, help texts, notification defaults, the browser tab title, and the PWA manifest show KeplerLLM instead of AnythingLLM.
 - Generated artifacts carry KeplerLLM branding (exported chats, office documents, chat widget defaults).
 - Bot messages and developer API documentation are titled KeplerLLM.
-- External product links point at KeplerLLM properties: the GitHub icon links to `https://github.com/ultra-mega-apps`, docs and support pages link to `https://ultra-mega-apps.com`, and the Discord invite plus the default support email are replaced by WhatsApp at `https://wa.me/13025505015`. The onboarding survey endpoint no longer reports to upstream.
+- External product links point at KeplerLLM properties: the GitHub icon links to `https://github.com/ultra-mega-apps`, docs and support pages link to `https://ultra-mega-apps.com`, the Discord invite is replaced by WhatsApp at `https://wa.me/13025505015`, and the default support email is `support@ultra-mega-apps.com`. The onboarding survey endpoint no longer reports to upstream.
 
 #### Rules and limits
 

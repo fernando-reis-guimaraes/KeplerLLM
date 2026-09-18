@@ -132,7 +132,7 @@ export default function Survey({ setHeader, setForwardBtn, setBackBtn }) {
               href={paths.supportContact()}
               className="text-sky-400 underline text-xs"
             >
-              +1 302 550 5015
+              support@ultra-mega-apps.com
             </a>
           </div>
         </div>
