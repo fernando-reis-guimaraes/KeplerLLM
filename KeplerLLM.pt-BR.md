@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering e agent-authored Custom Skill staging com human approval.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval e dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image.
 
 ## Fork changes
 
@@ -214,6 +214,58 @@ Apresentar o KeplerLLM como product name em todos os lugares visíveis ao user, 
 - Renomear upstream services, repositories ou documentation URLs.
 - Alterar os Community Hub imports, que permanecem administrativos.
 
+### Requirement 6 - Dynamic database backend selection
+
+#### Objective
+
+Executar a mesma Docker image do KeplerLLM com SQLite ou PostgreSQL, selecionando o backend no startup do container.
+
+#### Observable behavior
+
+- Quando `DATABASE_URL` está ausente ou vazia, o KeplerLLM usa SQLite em:
+
+```text
+/app/server/storage/anythingllm.db
+```
+
+O comportamento SQLite existente e o data location permanecem inalterados.
+
+- Quando `DATABASE_URL` contém `postgresql://...` ou `postgres://...`, o KeplerLLM usa PostgreSQL através de `DATABASE_URL`.
+- Neon é um standard PostgreSQL provider compatível. A implementação é PostgreSQL genérica e não é específica da Neon. Exemplo:
+
+```text
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
+```
+
+- O startup registra uma das linhas:
+
+```text
+Database backend: SQLite
+Database backend: PostgreSQL
+```
+
+O valor completo de `DATABASE_URL` e sua password nunca são registrados em log.
+
+- Se `DATABASE_URL` está definida mas não usa um PostgreSQL URI scheme, o startup falha de forma clara antes do application start e não usa SQLite como fallback.
+- `STORAGE_DIR` continua exigido mesmo com PostgreSQL porque o KeplerLLM guarda non-database files nesse local.
+- As migrations usam `prisma migrate deploy`, não `prisma db push`. SQLite usa `server/prisma/schema.prisma` e `server/prisma/migrations/`. PostgreSQL usa `server/prisma/postgresql/schema.prisma` e `server/prisma/postgresql/migrations/`.
+- Adicionar `DATABASE_URL` seleciona o backend PostgreSQL; isso não copia dados de um SQLite database existente. Remover `DATABASE_URL` depois seleciona novamente o SQLite database anterior se o arquivo ainda existir. Não há data migration automática entre backends.
+
+#### Rules and limits
+
+- SQLite permanece o default. Users sem `DATABASE_URL` não observam mudança de comportamento ou de data location.
+- Existe uma única Docker image e tag stream. Não há uma KeplerLLM image `:pg` separada.
+- A backend selection acontece no container startup em `docker/docker-entrypoint.sh`, antes do Prisma generate e migrate.
+- `server/prisma/schema.prisma` e `server/prisma/postgresql/schema.prisma` devem permanecer model-compatible. Apenas o datasource provider e os provider-specific header comments podem diferir.
+- A parity é garantida por `scripts/check-prisma-parity.cjs` (`yarn prisma:parity`) e `server/__tests__/prisma/schemaParity.test.js` (executado com `yarn test`).
+- O PostgreSQL migration history vem do upstream oficial `Mintplex-Labs/anything-llm`, branch `pg` (reference commit `93317de1880afccdace2c75ce83ba1281361eff1`), adaptado apenas quando necessário para o schema atual do KeplerLLM.
+
+#### Out of scope
+
+- Data migration automática de SQLite para PostgreSQL.
+- Uma segunda Docker image ou tag para PostgreSQL.
+- Comportamento específico da Neon além da standard PostgreSQL compatibility.
+
 ## Appendix - Operational reference
 
 Este apêndice registra apenas os fatos de runtime e publishing necessários para operar o fork. Não descreve implementation.
@@ -228,10 +280,11 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 
 ### Runtime configuration
 
-| Variable                       | Default               | Behavior                                                       |
-| ------------------------------ | --------------------- | -------------------------------------------------------------- |
-| `STORAGE_DIR`                  | `/app/server/storage` | Standard storage volume. Guarda UI configuration e skill data. |
-| `KEPLERLLM_MODEL_DISPLAY_NAME` | `Kepler AI`           | Product label exibido no workspace model picker.               |
+| Variable                       | Default               | Behavior                                                                                |
+| ------------------------------ | --------------------- | --------------------------------------------------------------------------------------- |
+| `STORAGE_DIR`                  | `/app/server/storage` | Standard storage volume. Guarda UI configuration e skill data. Ainda exigido com PostgreSQL. |
+| `KEPLERLLM_MODEL_DISPLAY_NAME` | `Kepler AI`           | Product label exibido no workspace model picker.                                        |
+| `DATABASE_URL`                 | unset                 | Quando ausente, usa SQLite. Quando contém `postgresql://...`, usa PostgreSQL.           |
 
 O deployment monta apenas:
 
@@ -268,6 +321,14 @@ Use:
 ```text
 STORAGE_DIR=/app/server/storage
 ```
+
+Para PostgreSQL, defina também:
+
+```text
+DATABASE_URL=postgresql://user:password@host:5432/database?sslmode=require
+```
+
+Quando `DATABASE_URL` está ausente, o SQLite é usado em `/app/server/storage/anythingllm.db`. Adicioná-la alterna para PostgreSQL sem migrar dados do SQLite. Removê-la seleciona novamente o SQLite se o arquivo ainda existir. `STORAGE_DIR` continua exigido com PostgreSQL.
 
 Opcionalmente personalize o model label:
 
