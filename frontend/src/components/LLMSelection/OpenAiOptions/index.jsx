@@ -49,6 +49,13 @@ function OpenAIModelSelection({ apiKey, settings }) {
           acc[model.organization].push(model);
           return acc;
         }, {});
+        // KeplerLLM fork: alphabetical order by name inside each
+        // organization group. Display-only; ids and selection unchanged.
+        for (const organization of Object.keys(modelsByOrganization)) {
+          modelsByOrganization[organization].sort((a, b) =>
+            a.name.localeCompare(b.name)
+          );
+        }
         setGroupedModels(modelsByOrganization);
       }
 

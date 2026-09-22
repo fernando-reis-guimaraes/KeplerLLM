@@ -12,7 +12,7 @@ function defaultProvider(providerString) {
       ? titleCase(sentenceCase(String(providerString)))
       : "Unknown",
     description: [
-      `"${providerString}" has no known data handling policy defined in AnythingLLM.`,
+      `"${providerString}" has no known data handling policy defined in KeplerLLM.`,
     ],
     logo: AnythingLLMIcon,
   };

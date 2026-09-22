@@ -1,6 +1,6 @@
 # KeplerLLM
 
-> Tradução em português. Especificação canônica em inglês (US): [README.md](README.md).
+> Tradução em português. Especificação canônica em inglês (US): [KeplerLLM.md](KeplerLLM.md).
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
@@ -187,6 +187,32 @@ Use the standard AnythingLLM plugin.json + handler.js layout.
 Do not put credentials in source files.
 Leave the skill inactive for review.
 ```
+
+### Requirement 5 - Product name in user-visible text
+
+#### Objective
+
+Apresentar o KeplerLLM como product name em todos os lugares visíveis ao user, mantendo todos os technical contracts idênticos ao upstream.
+
+#### Observable behavior
+
+- UI strings, titles, descriptions, help texts, notification defaults, o browser tab title e o PWA manifest exibem KeplerLLM em vez de AnythingLLM.
+- Os generated artifacts carregam o branding KeplerLLM (exported chats, office documents, chat widget defaults).
+- As bot messages e a developer API documentation são intituladas KeplerLLM.
+- Os external product links apontam para as propriedades KeplerLLM: o ícone GitHub leva a `https://github.com/ultra-mega-apps`, as docs and support pages levam a `https://ultra-mega-apps.com`, o Discord invite é substituído pelo WhatsApp em `https://wa.me/13025505015` e o default support email é `support@ultra-mega-apps.com`. O onboarding survey endpoint não reporta mais ao upstream.
+
+#### Rules and limits
+
+- Mudança apenas de texto. Package names, imports, identifiers, file paths, storage keys, localStorage keys, API routes, request/response contracts, provider slugs (incluindo `anythingllm-router`) e integration header tokens permanecem inalterados. Os functional upstream service endpoints permanecem em suas URLs originais.
+- As functional service integrations continuam funcionando: model downloads do upstream CDN, Community Hub imports e profile links, e o Docker Chromium download permanecem nos upstream endpoints.
+- O logo artwork e os static media assets permanecem inalterados.
+- O embed widget e a browser extension vivem em repositórios forked (`frginbox/KeplerLLM_Embed`, `frginbox/KeplerLLM_Browser-Extension`, com personal forks sob `fernando-reis-guimaraes/`), conectados como git submodules. Seu committed widget build sob `frontend/public/embed/` é regenerado a partir do forked embed source.
+- Não existem product email templates no codebase; a regra se aplica às bot and notification messages.
+
+#### Out of scope
+
+- Renomear upstream services, repositories ou documentation URLs.
+- Alterar os Community Hub imports, que permanecem administrativos.
 
 ## Appendix - Operational reference
 

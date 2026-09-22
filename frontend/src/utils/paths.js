@@ -55,22 +55,22 @@ export default {
     },
   },
   github: () => {
-    return "https://github.com/Mintplex-Labs/anything-llm";
+    return "https://github.com/ultra-mega-apps";
   },
-  discord: () => {
-    return "https://discord.com/invite/6UyHPeGZAC";
+  whatsapp: () => {
+    return "https://wa.me/13025505015";
   },
   docs: (path = "") => {
-    return `https://docs.anythingllm.com${path}`;
+    return `https://ultra-mega-apps.com${path}`;
   },
   chatModes: () => {
-    return "https://docs.anythingllm.com/features/chat-modes";
+    return "https://ultra-mega-apps.com/features/chat-modes";
   },
-  mailToMintplex: () => {
-    return "mailto:team@mintplexlabs.com";
+  supportContact: () => {
+    return "mailto:support@ultra-mega-apps.com";
   },
   hosting: () => {
-    return "https://my.mintplexlabs.com/aio-checkout?product=anythingllm";
+    return "https://ultra-mega-apps.com";
   },
   workspace: {
     chat: (slug, options = {}) => {
@@ -239,17 +239,16 @@ export default {
       return `${this.website()}/me`;
     },
     noPrivateItems: () => {
-      return "https://docs.anythingllm.com/community-hub/faq#no-private-items";
+      return "https://ultra-mega-apps.com/community-hub/faq#no-private-items";
     },
   },
 
-  // TODO: Migrate all docs.anythingllm.com links to the new docs.
   documentation: {
     mobileIntroduction: () => {
-      return "https://docs.anythingllm.com/mobile/overview";
+      return "https://ultra-mega-apps.com/mobile/overview";
     },
     contextWindows: () => {
-      return "https://docs.anythingllm.com/chatting-with-documents/introduction#you-exceed-the-context-window---what-now";
+      return "https://ultra-mega-apps.com/chatting-with-documents/introduction#you-exceed-the-context-window---what-now";
     },
   },
 

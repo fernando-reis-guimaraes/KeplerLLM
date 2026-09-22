@@ -1,6 +1,6 @@
 {
-  "name": "AnythingLLM",
-  "short_name": "AnythingLLM",
+  "name": "KeplerLLM",
+  "short_name": "KeplerLLM",
   "display": "standalone",
   "orientation": "portrait",
   "start_url": "/",

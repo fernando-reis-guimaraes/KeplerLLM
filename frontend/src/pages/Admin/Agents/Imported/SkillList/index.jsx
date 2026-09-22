@@ -13,12 +13,12 @@ export default function ImportedSkillList({
         <p>
           Learn about agent skills in the{" "}
           <a
-            href="https://docs.anythingllm.com/agent/custom/developer-guide"
+            href="https://ultra-mega-apps.com/agent/custom/developer-guide"
             target="_blank"
             className="text-theme-text-secondary underline hover:text-cta-button"
             rel="noreferrer"
           >
-            AnythingLLM Agent Docs
+            KeplerLLM Agent Docs
           </a>
           .
         </p>
@@ -46,7 +46,11 @@ export default function ImportedSkillList({
           <div className="text-sm font-light">{sentenceCase(config.name)}</div>
           <div className="flex items-center gap-x-2">
             <div className="text-sm text-theme-text-secondary font-medium">
-              {config.active ? "On" : "Off"}
+              {config.keplerllmPendingReview && !config.active
+                ? "Pending review"
+                : config.active
+                  ? "On"
+                  : "Off"}
             </div>
             <CaretRight
               size={14}

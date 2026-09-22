@@ -16,6 +16,12 @@ import ModelRouterAPI from "@/models/modelRouter";
 import { SIDEBAR_TOGGLE_EVENT } from "@/components/Sidebar/SidebarToggle";
 
 async function resolveModelName(workspace, systemSettings, t) {
+  // KeplerLLM fork: show the configured product label instead of the raw
+  // provider or model identifier. Display-only; selection is unchanged.
+  const configuredDisplayName =
+    globalThis.__KEPLERLLM_CONFIG__?.modelDisplayName?.trim();
+  if (configuredDisplayName) return configuredDisplayName;
+
   const effectiveProvider =
     workspace.chatProvider ?? systemSettings?.LLMProvider;
 

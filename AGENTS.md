@@ -2,7 +2,7 @@
 
 ## Fork documentation rule
 
-KeplerLLM is a thin fork/overlay on top of AnythingLLM. Keep the fork delta explicit and documented.
+KeplerLLM is a source fork of AnythingLLM. Keep the fork delta explicit and documented.
 
 Whenever you make a KeplerLLM-specific change, update `KeplerLLM.md` and `KeplerLLM.pt-BR.md` in the same change/commit so the **Fork changes** section accurately documents the current behavior.
 
@@ -24,8 +24,8 @@ For each documented fork change, record the important operational details when r
 - Why the fork changes it.
 - Relevant paths, environment variables, or configuration.
 - Security implications or trust boundaries.
-- Upgrade/maintenance implications, especially exact-source patch anchors that may fail after an upstream upgrade.
+- Upgrade and maintenance implications, especially changes that may conflict with future upstream updates.
 
-Pure formatting, spelling, comment-only changes, or internal refactors that do not alter fork behavior do not require a new README entry.
+Pure formatting, spelling, comment-only changes, or internal refactors that do not alter fork behavior do not require a new specification entry.
 
 Documentation and code comments must be written in English (US).

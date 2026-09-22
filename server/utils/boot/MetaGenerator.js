@@ -17,6 +17,8 @@
  * static property and will not be reloaded until the page is loaded AND #customConfig is explicitly null. So anytime a setting
  * for meta-props is updated you should get this singleton class and call `.clearConfig` so the next page load will show the new props.
  */
+const { keplerllmConfigScript } = require("./keplerllmConfig");
+
 class MetaGenerator {
   name = "MetaGenerator";
 
@@ -27,8 +29,8 @@ class MetaGenerator {
   #customConfig = null;
 
   #defaultManifest = {
-    name: "AnythingLLM",
-    short_name: "AnythingLLM",
+    name: "KeplerLLM",
+    short_name: "KeplerLLM",
     display: "standalone",
     orientation: "portrait",
     start_url: "/",
@@ -59,21 +61,21 @@ class MetaGenerator {
       {
         tag: "title",
         props: null,
-        content: "AnythingLLM | Your personal LLM trained on anything",
+        content: "KeplerLLM | Your personal LLM trained on anything",
       },
 
       {
         tag: "meta",
         props: {
           name: "title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "KeplerLLM | Your personal LLM trained on anything",
         },
       },
       {
         tag: "meta",
         props: {
           description: "title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "KeplerLLM | Your personal LLM trained on anything",
         },
       },
 
@@ -81,20 +83,20 @@ class MetaGenerator {
       { tag: "meta", props: { property: "og:type", content: "website" } },
       {
         tag: "meta",
-        props: { property: "og:url", content: "https://anythingllm.com" },
+        props: { property: "og:url", content: "https://ultra-mega-apps.com" },
       },
       {
         tag: "meta",
         props: {
           property: "og:title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "KeplerLLM | Your personal LLM trained on anything",
         },
       },
       {
         tag: "meta",
         props: {
           property: "og:description",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "KeplerLLM | Your personal LLM trained on anything",
         },
       },
       {
@@ -113,20 +115,23 @@ class MetaGenerator {
       },
       {
         tag: "meta",
-        props: { property: "twitter:url", content: "https://anythingllm.com" },
+        props: {
+          property: "twitter:url",
+          content: "https://ultra-mega-apps.com",
+        },
       },
       {
         tag: "meta",
         props: {
           property: "twitter:title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "KeplerLLM | Your personal LLM trained on anything",
         },
       },
       {
         tag: "meta",
         props: {
           property: "twitter:description",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "KeplerLLM | Your personal LLM trained on anything",
         },
       },
       {
@@ -229,7 +234,7 @@ class MetaGenerator {
             props: null,
             content:
               customTitle ??
-              "AnythingLLM | Your personal LLM trained on anything",
+              "KeplerLLM | Your personal LLM trained on anything",
           };
         }
         // Override meta title
@@ -240,7 +245,7 @@ class MetaGenerator {
               name: "title",
               content:
                 customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+                "KeplerLLM | Your personal LLM trained on anything",
             },
           };
         }
@@ -252,7 +257,7 @@ class MetaGenerator {
               property: "og:title",
               content:
                 customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+                "KeplerLLM | Your personal LLM trained on anything",
             },
           };
         }
@@ -264,7 +269,7 @@ class MetaGenerator {
               property: "twitter:title",
               content:
                 customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+                "KeplerLLM | Your personal LLM trained on anything",
             },
           };
         }
@@ -311,6 +316,7 @@ class MetaGenerator {
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             ${this.#assembleMeta()}
+            ${keplerllmConfigScript()}
             <script type="module" crossorigin src="/index.js"></script>
             <link rel="stylesheet" href="/index.css">
           </head>
@@ -330,7 +336,7 @@ class MetaGenerator {
       const { SystemSettings } = require("../../models/systemSettings");
       const manifestName = await SystemSettings.getValueOrFallback(
         { label: "meta_page_title" },
-        "AnythingLLM"
+        "KeplerLLM"
       );
       const faviconURL = await SystemSettings.getValueOrFallback(
         { label: "meta_page_favicon" },

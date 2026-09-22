@@ -31,7 +31,7 @@ class NovitaLLM {
       baseURL: this.basePath,
       apiKey: process.env.NOVITA_LLM_API_KEY ?? null,
       defaultHeaders: {
-        "HTTP-Referer": "https://anythingllm.com",
+        "HTTP-Referer": "https://ultra-mega-apps.com",
         "X-Novita-Source": "anythingllm",
       },
     });

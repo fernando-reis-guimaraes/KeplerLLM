@@ -1,0 +1,15 @@
+services:
+  keplerllm:
+    image: cr.umapps.net/umapps/keplerllm:${IMAGE_TAG:-beta}
+    build:
+      context: ../.
+      dockerfile: ./docker/Dockerfile
+      pull: true
+      args:
+        ARG_UID: ${UID:-1000}
+        ARG_GID: ${GID:-1000}
+      platforms:
+        - linux/amd64
+        - linux/arm64
+      tags:
+        - cr.umapps.net/umapps/keplerllm:latest
