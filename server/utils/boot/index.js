@@ -33,35 +33,18 @@ async function bootDefaultWorkspace() {
 // Update .env keys with the correct values and boot. These are temporary and not real SSL certs - only use for local.
 // Test with https://localhost:3001/api/ping
 // build and copy frontend to server/public with correct API_BASE and start server in prod model and all should be ok
-function bootSSL(app, port = 3001) {
+async function bootSSL(app, port = 3001) {
+  // Load certificates first: cert failures fall back to HTTP boot, while a
+  // bootstrap failure below must fail fast and never fall back.
+  let credentials;
   try {
     console.log(
       `\x1b[33m[SSL BOOT ENABLED]\x1b[0m Loading the certificate and key for HTTPS mode...`
     );
     const fs = require("fs");
-    const https = require("https");
     const privateKey = fs.readFileSync(process.env.HTTPS_KEY_PATH);
     const certificate = fs.readFileSync(process.env.HTTPS_CERT_PATH);
-    const credentials = { key: privateKey, cert: certificate };
-    const server = https.createServer(credentials, app);
-
-    server
-      .listen(port, async () => {
-        await markOnboarded();
-        await setupTelemetry();
-        new CommunicationKey(true);
-        new EncryptionManager();
-        await bootDefaultWorkspace();
-        new BackgroundService().boot();
-        await eagerLoadContextWindows();
-        await PushNotifications.setupPushNotificationService();
-        await TelegramBotService.bootIfActive();
-        console.log(`Primary server in HTTPS mode listening on port ${port}`);
-      })
-      .on("error", catchSigTerms);
-
-    require("@mintplex-labs/express-ws").default(app, server);
-    return { app, server };
+    credentials = { key: privateKey, cert: certificate };
   } catch (e) {
     console.error(
       `\x1b[31m[SSL BOOT FAILED]\x1b[0m ${e.message} - falling back to HTTP boot.`,
@@ -74,10 +57,36 @@ function bootSSL(app, port = 3001) {
     );
     return bootHTTP(app, port);
   }
+
+  // KeplerLLM fork: bootstrap completes before the listening socket exists.
+  await bootDefaultWorkspace();
+
+  const https = require("https");
+  const server = https.createServer(credentials, app);
+
+  server
+    .listen(port, async () => {
+      await markOnboarded();
+      await setupTelemetry();
+      new CommunicationKey(true);
+      new EncryptionManager();
+      new BackgroundService().boot();
+      await eagerLoadContextWindows();
+      await PushNotifications.setupPushNotificationService();
+      await TelegramBotService.bootIfActive();
+      console.log(`Primary server in HTTPS mode listening on port ${port}`);
+    })
+    .on("error", catchSigTerms);
+
+  require("@mintplex-labs/express-ws").default(app, server);
+  return { app, server };
 }
 
-function bootHTTP(app, port = 3001) {
+async function bootHTTP(app, port = 3001) {
   if (!app) throw new Error('No "app" defined - crashing!');
+
+  // KeplerLLM fork: bootstrap completes before the listening socket exists.
+  await bootDefaultWorkspace();
 
   app
     .listen(port, async () => {
@@ -85,7 +94,6 @@ function bootHTTP(app, port = 3001) {
       await setupTelemetry();
       new CommunicationKey(true);
       new EncryptionManager();
-      await bootDefaultWorkspace();
       new BackgroundService().boot();
       await eagerLoadContextWindows();
       await PushNotifications.setupPushNotificationService();
@@ -109,6 +117,7 @@ function catchSigTerms() {
 }
 
 module.exports = {
+  bootDefaultWorkspace,
   bootHTTP,
   bootSSL,
 };

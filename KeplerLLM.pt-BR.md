@@ -392,7 +392,9 @@ Provisionar o default AnythingLLM workspace no first boot a partir de environmen
 
 #### System prompt sources
 
-Tres fontes sao suportadas com precedencia FILE maior que BASE64 maior que plain.
+Tres fontes sao suportadas com precedencia sobre valores nao vazios: FILE nao vazio maior que BASE64 nao vazio maior que plain.
+
+Um DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE ou DEFAULT_WORKSPACE_SYSTEM_PROMPT_BASE64 vazio ou com apenas whitespace comporta-se como nao configurado, de modo que uma variavel opcional declarada mas deixada vazia (comum em Docker/CapRover) nunca sombreia uma fonte de precedencia menor que esteja utilizavel. Um valor nao vazio invalido ainda falha no startup de forma clara, sem fallback.
 
 Simple prompt:
 
@@ -564,7 +566,7 @@ DEFAULT_WORKSPACE_SYSTEM_PROMPT_BASE64=<base64-value>
 DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE=/run/secrets/kepler-system-prompt.txt
 ```
 
-A precedencia do prompt e FILE maior que BASE64 maior que plain. O database e source of truth apos a criacao; restarts nunca sobrescrevem mudancas da UI/API. Mantenha prompts decodificados via env em ate aproximadamente 64 KiB; use o modo file para prompts maiores. Base64 aumenta o payload em aproximadamente 33 porcento.
+A precedencia do prompt e FILE nao vazio maior que BASE64 nao vazio maior que plain (FILE/BASE64 vazios comportam-se como nao configurados). O database e source of truth apos a criacao; restarts nunca sobrescrevem mudancas da UI/API. Mantenha prompts decodificados via env em ate aproximadamente 64 KiB; use o modo file para prompts maiores. Base64 aumenta o payload em aproximadamente 33 porcento.
 
 Mantenha o named volume:
 
