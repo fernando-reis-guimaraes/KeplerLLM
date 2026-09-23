@@ -11,7 +11,7 @@ export default function SettingsButton() {
   const hideSettingsButtons = useHideSettingsButtons();
 
   if (user && user?.role === "default") return null;
-  if (hideSettingsButtons) return null;
+  if (hideSettingsButtons && !isInSettings) return null;
 
   if (isInSettings)
     return (

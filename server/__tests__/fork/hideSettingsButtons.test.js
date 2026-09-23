@@ -50,7 +50,12 @@ describe("hide settings buttons frontend wiring", () => {
       "index.jsx"
     );
     expect(settingsButton).toContain("useHideSettingsButtons");
-    expect(settingsButton).toContain("if (hideSettingsButtons) return null;");
+    expect(settingsButton).toContain(
+      "if (hideSettingsButtons && !isInSettings) return null;"
+    );
+    // The Back to workspaces button inside /settings/* must stay visible.
+    expect(settingsButton).toContain("if (isInSettings)");
+    expect(settingsButton).toContain("ArrowUUpLeft");
 
     const workspaces = readRepoFile(
       "frontend",

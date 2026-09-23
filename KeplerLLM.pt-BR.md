@@ -460,7 +460,7 @@ Opcionalmente ocultar os Settings entry buttons para desencorajar acesso casual 
 #### Observable behavior
 
 - Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta ausente, a UI segue exatamente o upstream behavior.
-- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta presente com qualquer valor (incluindo `false`), o gear de settings por workspace e o `SettingsButton` global ficam ocultos. A presence semantics segue `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`.
+- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta presente com qualquer valor (incluindo `false`), o gear de settings por workspace e o `Wrench` de entrada em Settings ficam ocultos, enquanto o botao `Back to workspaces` dentro de `/settings/*` permanece visivel. A presence semantics segue `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`.
 - Apenas esses dois controles sao ocultados. Workspaces, uploads, threads, chat controls, footer icons e todas as outras acoes permanecem inalterados.
 - As Settings URLs diretas (`/settings/...`, `/workspace/:slug/settings/...`), routes e APIs continuam funcionando sem redirect, 403 ou access restriction.
 - Executar `showButtons()` no DevTools do browser revela ambos os controles imediatamente na tab atual sem reload. O override e apenas in-memory; um reload completo oculta novamente enquanto a environment variable estiver presente.

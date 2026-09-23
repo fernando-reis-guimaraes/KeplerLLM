@@ -477,7 +477,7 @@ Optionally hide Settings entry buttons to discourage casual or curious access by
 #### Observable behavior
 
 - When `KEPLERLLM_HIDE_SETTINGS_BUTTONS` is absent, the UI is exactly upstream behavior.
-- When `KEPLERLLM_HIDE_SETTINGS_BUTTONS` is present with any value (including `false`), the per-workspace settings gear and the global `SettingsButton` are hidden. Presence semantics match `DISABLE_VIEW_CHAT_HISTORY` and `WORKSPACE_DELETION_PROTECTION`.
+- When `KEPLERLLM_HIDE_SETTINGS_BUTTONS` is present with any value (including `false`), the per-workspace settings gear and the Settings entry `Wrench` are hidden, while the `Back to workspaces` button inside `/settings/*` remains visible. Presence semantics match `DISABLE_VIEW_CHAT_HISTORY` and `WORKSPACE_DELETION_PROTECTION`.
 - Only those two controls are hidden. Workspaces, uploads, threads, chat controls, footer icons, and all other actions are unchanged.
 - Direct Settings URLs (`/settings/...`, `/workspace/:slug/settings/...`), routes, and APIs keep working with no redirect, 403, or access restriction.
 - Running `showButtons()` in browser DevTools reveals both controls immediately in the current tab with no reload. The override is in-memory only; a full reload hides them again while the environment variable is present.
