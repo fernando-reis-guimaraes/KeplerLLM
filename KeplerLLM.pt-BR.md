@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval e dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image e um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider.
 
 ## Fork changes
 
@@ -266,6 +266,54 @@ O valor completo de `DATABASE_URL` e sua password nunca são registrados em log.
 - Uma segunda Docker image ou tag para PostgreSQL.
 - Comportamento específico da Neon além da standard PostgreSQL compatibility.
 
+### Requirement 7 - Generic OpenAI Responses API mode
+
+#### Objective
+
+Permitir que o Generic OpenAI provider (`LLM_PROVIDER=generic-openai`) use endpoints OpenAI-compatible Responses API (`POST /responses`) em vez de Chat Completions (`POST /chat/completions`), selecionado inteiramente por environment variable, sem mudar o comportamento das instalações existentes.
+
+#### Observable behavior
+
+- Quando `GENERIC_OPEN_AI_API_MODE` está ausente, o provider usa `chat-completions`, exatamente como antes desta mudança.
+- Quando definido como `chat-completions`, o comportamento não muda.
+- Quando definido como `responses`, normal chat, streaming chat e native agent/MCP tool calling rodam contra a Responses API através do official OpenAI SDK (`responses.create`).
+- Resultados de Responses (text, reasoning, tool calls, token usage, metrics) são normalizados para os existing internal contracts, de modo que chat, streaming e o agent loop funcionam sem branches protocol-specific downstream.
+- Durante a execução multi-turn de agent tools, o provider encadeia o Responses continuation identifier dentro do active run quando o provider suporta, e tenta uma vez stateless quando o provider o rejeita.
+- Requests encadeados de continuation enviam apenas o input recém-produzido (por exemplo só o `function_call_output`); o retry stateless reenvia o histórico completo reconstruído para que o request continue independentemente válido. O continuation state nunca sai do active agent run.
+- Um valor inválido gera um warning claro e retorna para `chat-completions`.
+- No startup, o provider registra o protocolo selecionado (sem credentials):
+
+```text
+[GenericOpenAiLLM] Inference API: https://api.meta.ai/v1 Model: muse-spark-1.3-contributor API mode: responses
+```
+
+Exemplo de configuração:
+
+```env
+LLM_PROVIDER=generic-openai
+GENERIC_OPEN_AI_BASE_PATH=https://api.meta.ai/v1
+GENERIC_OPEN_AI_MODEL_PREF=muse-spark-1.3-contributor
+GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT=1048576
+GENERIC_OPEN_AI_MAX_TOKENS=131072
+GENERIC_OPEN_AI_API_KEY=<secret>
+GENERIC_OPEN_AI_API_MODE=responses
+```
+
+#### Rules and limits
+
+- Configuração apenas por environment variable. Não há UI setting para o protocol mode.
+- `chat-completions` continua o default; instalações existentes sem a nova variável não observam mudança de comportamento.
+- O provider precisa suportar a Responses API; backends apenas Chat Completions continuam funcionando pelo default mode.
+- O Responses mode é particularmente útil para agentic workloads e providers com suporte a reasoning continuity.
+- No Responses mode, `GENERIC_OPEN_AI_MAX_TOKENS` mapeia para `max_output_tokens`, o Responses usage (`input_tokens`/`output_tokens`/`total_tokens`) mapeia para as existing prompt/completion/total metrics, e `temperature` é omitido dos Responses requests porque deployments Responses-only de reasoning comumente o rejeitam. O Chat Completions mode continua enviando `temperature` exatamente como antes.
+- O model discovery (`/v1/models` via `models.list()`) não muda, e `GENERIC_OPEN_AI_MODEL_PREF` ainda pode nomear um model que o `/models` não lista.
+- A implementation relevante vive em `server/utils/AiProviders/genericOpenAi/` (protocol adapters compartilhados em `responses.js`) e `server/utils/agents/aibitat/providers/genericOpenAi.js`. O AIbitat agent loop em si não muda.
+
+#### Out of scope
+
+- Suporte a providers que não sejam OpenAI-compatible.
+- Persistir Responses continuation identifiers entre conversations; o chaining state limita-se ao active agent run.
+
 ## Appendix - Operational reference
 
 Este apêndice registra apenas os fatos de runtime e publishing necessários para operar o fork. Não descreve implementation.
@@ -285,6 +333,7 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `STORAGE_DIR`                  | `/app/server/storage` | Standard storage volume. Guarda UI configuration e skill data. Ainda exigido com PostgreSQL. |
 | `KEPLERLLM_MODEL_DISPLAY_NAME` | `Kepler AI`           | Product label exibido no workspace model picker.                                        |
 | `DATABASE_URL`                 | unset                 | Quando ausente, usa SQLite. Quando contém `postgresql://...`, usa PostgreSQL.           |
+| `GENERIC_OPEN_AI_API_MODE`     | `chat-completions`    | Protocolo do Generic OpenAI: `chat-completions` (default) ou `responses` (Responses API). |
 
 O deployment monta apenas:
 

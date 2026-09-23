@@ -13,6 +13,15 @@ const { v4: uuidv4 } = require("uuid");
 const { toValidNumber } = require("../../http");
 const { getAnythingLLMUserAgent } = require("../../../endpoints/utils");
 const { attachmentToContentBlock } = require("../../helpers/attachments");
+const {
+  RESPONSES_MODE,
+  resolveApiMode,
+  chatMessagesToResponsesInput,
+  buildResponsesRequest,
+  extractResponsesText,
+  extractResponsesReasoning,
+  normalizeResponsesUsage,
+} = require("./responses");
 
 class GenericOpenAiLLM {
   constructor(embedder = null, modelPreference = null) {
@@ -47,7 +56,26 @@ class GenericOpenAiLLM {
 
     this.embedder = embedder ?? new NativeEmbedder();
     this.defaultTemp = 0.7;
-    this.log(`Inference API: ${this.basePath} Model: ${this.model}`);
+    this.log(
+      `Inference API: ${this.basePath} Model: ${this.model} API mode: ${this.apiMode()}`
+    );
+  }
+
+  /**
+   * Resolves the protocol mode from the environment. Single source of truth
+   * for both the chat connector and the agent provider.
+   * @returns {"chat-completions"|"responses"}
+   */
+  static resolveApiMode() {
+    return resolveApiMode(process.env);
+  }
+
+  /**
+   * The protocol mode selected for this instance.
+   * @returns {"chat-completions"|"responses"}
+   */
+  apiMode() {
+    return this.constructor.resolveApiMode();
   }
 
   log(text, ...args) {
@@ -221,18 +249,93 @@ class GenericOpenAiLLM {
     };
   }
 
+  /**
+   * Chat Completions request helper. Preserves the exact historical request
+   * shape (temperature + max_tokens) for backwards compatibility.
+   */
+  #createChatCompletion({ messages, temperature, stream = false }) {
+    return this.openai.chat.completions.create({
+      model: this.model,
+      ...(stream ? { stream: true } : {}),
+      messages,
+      temperature,
+      max_tokens: this.maxTokens,
+      ...(stream ? this.#includeStreamOptionsUsage() : {}),
+    });
+  }
+
+  /**
+   * Responses API request helper for single-turn chat.
+   * - `messages` (chat-completions shape) are converted to Responses `input`.
+   * - `max_tokens` becomes `max_output_tokens`.
+   * - `temperature` is intentionally omitted: Responses-only reasoning
+   *   deployments commonly reject it, and nothing downstream requires it.
+   * - `store: false` is explicit here because single-turn chat never chains
+   *   `previous_response_id`, so no server-side state needs retaining.
+   */
+  #createResponse({ messages, stream = false }) {
+    return this.openai.responses.create(
+      buildResponsesRequest({
+        model: this.model,
+        input: chatMessagesToResponsesInput(messages),
+        maxOutputTokens: this.maxTokens,
+        stream,
+        store: false,
+      })
+    );
+  }
+
+  /**
+   * Normalizes a Responses API result into the provider's existing return
+   * contract ({textResponse, metrics}) so downstream code never sees
+   * protocol-specific structures.
+   */
+  #parseResponsesResult(output, duration) {
+    const usage = {
+      ...normalizeResponsesUsage(output?.usage),
+      duration,
+    };
+    const reasoning = extractResponsesReasoning(output);
+    let textResponse = extractResponsesText(output);
+    if (reasoning && reasoning.trim().length > 0)
+      textResponse = `<think>${reasoning}</think>${textResponse}`;
+
+    return {
+      textResponse,
+      metrics: {
+        ...usage,
+        outputTps:
+          usage.duration > 0 ? usage.completion_tokens / usage.duration : 0,
+        model: this.model,
+        provider: this.className,
+        timestamp: new Date(),
+      },
+    };
+  }
+
+  /**
+   * Rethrows SDK errors with the upstream message intact. Abort errors are
+   * rethrown unwrapped so `isAbortError` still recognizes them.
+   */
+  #rethrowWithMessage(error) {
+    if (isAbortError(error)) throw error;
+    throw new Error(error?.message ?? String(error));
+  }
+
   async getChatCompletion(messages = null, { temperature = 0.7 }) {
+    if (this.apiMode() === RESPONSES_MODE) {
+      const result = await LLMPerformanceMonitor.measureAsyncFunction(
+        this.#createResponse({ messages }).catch((e) => {
+          this.#rethrowWithMessage(e);
+        })
+      );
+      return this.#parseResponsesResult(result.output, result.duration);
+    }
+
     const result = await LLMPerformanceMonitor.measureAsyncFunction(
-      this.openai.chat.completions
-        .create({
-          model: this.model,
-          messages,
-          temperature,
-          max_tokens: this.maxTokens,
-        })
-        .catch((e) => {
-          throw new Error(e.message);
-        })
+      this.#createChatCompletion({ messages, temperature }).catch((e) => {
+        throw new Error(e.message);
+      })
     );
 
     if (
@@ -262,15 +365,19 @@ class GenericOpenAiLLM {
   }
 
   async streamGetChatCompletion(messages = null, { temperature = 0.7 }) {
-    const measuredStreamRequest = await LLMPerformanceMonitor.measureStream({
-      func: this.openai.chat.completions.create({
-        model: this.model,
-        stream: true,
+    if (this.apiMode() === RESPONSES_MODE) {
+      const measuredStreamRequest = await LLMPerformanceMonitor.measureStream({
+        func: this.#createResponse({ messages, stream: true }),
         messages,
-        temperature,
-        max_tokens: this.maxTokens,
-        ...this.#includeStreamOptionsUsage(),
-      }),
+        runPromptTokenCalculation: true,
+        modelTag: this.model,
+        provider: this.className,
+      });
+      return measuredStreamRequest;
+    }
+
+    const measuredStreamRequest = await LLMPerformanceMonitor.measureStream({
+      func: this.#createChatCompletion({ messages, temperature, stream: true }),
       messages,
       runPromptTokenCalculation: true,
       modelTag: this.model,
@@ -283,6 +390,9 @@ class GenericOpenAiLLM {
   // to specifically handle the DeepSeek reasoning model `reasoning_content` field.
   // When or if ever possible, we should refactor this to be in the generic function.
   handleStream(response, stream, responseProps) {
+    if (this.apiMode() === RESPONSES_MODE)
+      return this.handleResponsesStream(response, stream, responseProps);
+
     const { uuid = uuidv4(), sources = [] } = responseProps;
     let hasUsageMetrics = false;
     let usage = {
@@ -420,6 +530,195 @@ class GenericOpenAiLLM {
         });
         stream?.endMeasurement(usage);
         resolve(fullText);
+      }
+    });
+  }
+
+  /**
+   * Handles a Responses API stream (`this.openai.responses.create` with
+   * `stream: true`) and translates its events into the existing AnythingLLM
+   * output stream contract (incremental `textResponseChunk` writes). Raw
+   * Responses event JSON is never forwarded to the frontend.
+   */
+  handleResponsesStream(response, stream, responseProps) {
+    const { uuid = uuidv4(), sources = [] } = responseProps;
+    let hasUsageMetrics = false;
+    let usage = {
+      completion_tokens: 0,
+    };
+
+    const writeToken = (textResponse) => {
+      writeResponseChunk(response, {
+        uuid,
+        sources: [],
+        type: "textResponseChunk",
+        textResponse,
+        close: false,
+        error: false,
+      });
+    };
+
+    const applyResponsesUsage = (responsesUsage) => {
+      if (!responsesUsage || typeof responsesUsage !== "object") return;
+      if (
+        responsesUsage.input_tokens != null ||
+        responsesUsage.prompt_tokens != null
+      ) {
+        usage.prompt_tokens = Number(
+          responsesUsage.input_tokens ?? responsesUsage.prompt_tokens
+        );
+      }
+      if (
+        responsesUsage.output_tokens != null ||
+        responsesUsage.completion_tokens != null
+      ) {
+        hasUsageMetrics = true;
+        usage.completion_tokens = Number(
+          responsesUsage.output_tokens ?? responsesUsage.completion_tokens
+        );
+      }
+      if (responsesUsage.total_tokens != null)
+        usage.total_tokens = Number(responsesUsage.total_tokens);
+    };
+
+    // Some providers expose reasoning deltas on event types outside the
+    // pinned SDK union (ex: reasoning summary streams). Extract liberally.
+    const extractReasoningDelta = (event) => {
+      if (!event || typeof event !== "object") return undefined;
+      if (
+        typeof event.delta === "string" &&
+        /reasoning/i.test(event.type ?? "")
+      )
+        return event.delta;
+      return undefined;
+    };
+
+    return new Promise(async (resolve) => {
+      let fullText = "";
+      let reasoningText = "";
+
+      const handleAbort = () => {
+        stream?.endMeasurement(usage);
+        clientAbortedHandler(resolve, fullText);
+      };
+      response.on("close", handleAbort);
+
+      const closeWithText = () => {
+        writeResponseChunk(response, {
+          uuid,
+          sources,
+          type: "textResponseChunk",
+          textResponse: "",
+          close: true,
+          error: false,
+        });
+        response.removeListener("close", handleAbort);
+        stream?.endMeasurement(usage);
+        resolve(fullText);
+      };
+
+      const abortWithError = (message) => {
+        writeResponseChunk(response, {
+          uuid,
+          type: "abort",
+          textResponse: null,
+          sources: [],
+          close: true,
+          error: message,
+        });
+        response.removeListener("close", handleAbort);
+        stream?.endMeasurement(usage);
+        resolve(fullText);
+      };
+
+      try {
+        for await (const event of stream) {
+          const type = event?.type ?? "";
+
+          if (type === "response.output_text.delta") {
+            const token = event.delta;
+            const reasoningToken = extractReasoningContent(event);
+            if (reasoningToken) {
+              if (reasoningText.length === 0) {
+                writeToken(`<think>${reasoningToken}`);
+                reasoningText += `<think>${reasoningToken}`;
+              } else {
+                writeToken(reasoningToken);
+                reasoningText += reasoningToken;
+              }
+              continue;
+            }
+            if (token) {
+              if (reasoningText) {
+                writeToken(`</think>`);
+                fullText += `${reasoningText}</think>`;
+                reasoningText = "";
+              }
+              fullText += token;
+              if (!hasUsageMetrics) usage.completion_tokens++;
+              writeToken(token);
+            }
+            continue;
+          }
+
+          if (type === "response.refusal.delta" && event.delta) {
+            fullText += event.delta;
+            if (!hasUsageMetrics) usage.completion_tokens++;
+            writeToken(event.delta);
+            continue;
+          }
+
+          const reasoningDelta = extractReasoningDelta(event);
+          if (reasoningDelta) {
+            if (reasoningText.length === 0) {
+              writeToken(`<think>${reasoningDelta}`);
+              reasoningText += `<think>${reasoningDelta}`;
+            } else {
+              writeToken(reasoningDelta);
+              reasoningText += reasoningDelta;
+            }
+            continue;
+          }
+
+          if (type === "response.completed" || type === "response.incomplete") {
+            applyResponsesUsage(event?.response?.usage);
+            if (reasoningText) {
+              // Incomplete reasoning without a following text delta still
+              // needs its closing tag so the UI renders it correctly.
+              writeToken(`</think>`);
+              fullText += `${reasoningText}</think>`;
+              reasoningText = "";
+            }
+            closeWithText();
+            break;
+          }
+
+          if (type === "response.failed") {
+            const message =
+              event?.response?.error?.message ||
+              "The Responses API request failed.";
+            abortWithError(message);
+            break;
+          }
+
+          if (type === "error") {
+            abortWithError(
+              event?.message || "The Responses API request failed."
+            );
+            break;
+          }
+
+          // All other event types (item added/done, content part markers,
+          // function-call arguments in the tool-less chat path, lifecycle
+          // pings) carry no displayable text and are intentionally ignored.
+        }
+      } catch (e) {
+        if (isAbortError(e)) {
+          stream?.endMeasurement(usage);
+          return clientAbortedHandler(resolve, fullText);
+        }
+        console.log(`\x1b[43m\x1b[34m[STREAMING ERROR]\x1b[0m ${e.message}`);
+        abortWithError(e.message);
       }
     });
   }

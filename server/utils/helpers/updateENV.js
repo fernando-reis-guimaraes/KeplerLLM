@@ -1489,6 +1489,8 @@ function dumpENV() {
 
     // Allow disabling of streaming for generic openai
     "GENERIC_OPENAI_STREAMING_DISABLED",
+    // Protocol mode for generic openai (chat-completions | responses, env-only)
+    "GENERIC_OPEN_AI_API_MODE",
     // Custom headers for Generic OpenAI
     "GENERIC_OPEN_AI_CUSTOM_HEADERS",
 
