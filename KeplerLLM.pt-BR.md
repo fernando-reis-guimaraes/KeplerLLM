@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables e default workspace bootstrap a partir de environment variables.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables, default workspace bootstrap a partir de environment variables e optional UI-only hiding dos Settings entry buttons.
 
 ## Fork changes
 
@@ -451,6 +451,32 @@ Nenhum application-level prompt limit desnecessariamente pequeno e imposto. Prom
 - Alterar a existing AnythingLLM workspace creation, UI-created workspaces, API-created workspaces, migrations ou upstream defaults.
 
 
+### Requirement 10 - Optional Settings button hiding
+
+#### Objective
+
+Opcionalmente ocultar os Settings entry buttons para desencorajar acesso casual ou curioso por trusted users.
+
+#### Observable behavior
+
+- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta ausente, a UI segue exatamente o upstream behavior.
+- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta presente com qualquer valor (incluindo `false`), o gear de settings por workspace e o `SettingsButton` global ficam ocultos. A presence semantics segue `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`.
+- Apenas esses dois controles sao ocultados. Workspaces, uploads, threads, chat controls, footer icons e todas as outras acoes permanecem inalterados.
+- As Settings URLs diretas (`/settings/...`, `/workspace/:slug/settings/...`), routes e APIs continuam funcionando sem redirect, 403 ou access restriction.
+- Executar `showButtons()` no DevTools do browser revela ambos os controles imediatamente na tab atual sem reload. O override e apenas in-memory; um reload completo oculta novamente enquanto a environment variable estiver presente.
+
+#### Rules and limits
+
+- Mudanca apenas de UI. Nao e um security boundary.
+- Apenas runtime server environment variable. Nao ha variavel build-time `VITE_*`, nem persistencia em database, nem UI toggle.
+- O server expoe `HideSettingsButtons` pelo mecanismo existente `SystemSettings.currentSettings()` / `/setup-complete` / `System.keys()`.
+- A implementation relevante esta em `server/models/systemSettings.js`, `frontend/src/hooks/useHideSettingsButtons.js`, `frontend/src/utils/settingsButtonsVisibility.js`, `frontend/src/components/SettingsButton/index.jsx` e `frontend/src/components/Sidebar/ActiveWorkspaces/index.jsx`.
+
+#### Out of scope
+
+- Route protection, authentication, authorization, RBAC, middleware, redirects ou server-side access restrictions.
+- Ocultar qualquer outro elemento da UI.
+
 ## Appendix - Operational reference
 
 Este apêndice registra apenas os fatos de runtime e publishing necessários para operar o fork. Não descreve implementation.
@@ -480,6 +506,7 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `DEFAULT_WORKSPACE_CHAT_MODE`  | unset                 | chatMode de bootstrap: chat, query ou automatic. Unset preserva o default. |
 | `DEFAULT_WORKSPACE_TEMPERATURE` | unset                | openAiTemp de bootstrap como number >= 0. Unset preserva o default. |
 | `DEFAULT_WORKSPACE_HISTORY`    | unset                 | openAiHistory de bootstrap como integer >= 0. Unset preserva o default. |
+| `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | Quando presente com qualquer valor, oculta os Settings entry buttons apenas na UI. URLs diretas continuam funcionando. |
 
 O deployment monta apenas:
 
@@ -567,6 +594,12 @@ DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE=/run/secrets/kepler-system-prompt.txt
 ```
 
 A precedencia do prompt e FILE nao vazio maior que BASE64 nao vazio maior que plain (FILE/BASE64 vazios comportam-se como nao configurados). O database e source of truth apos a criacao; restarts nunca sobrescrevem mudancas da UI/API. Mantenha prompts decodificados via env em ate aproximadamente 64 KiB; use o modo file para prompts maiores. Base64 aumenta o payload em aproximadamente 33 porcento.
+
+Opcionalmente oculte os Settings entry buttons apenas na UI (as Settings URLs diretas permanecem acessiveis):
+
+```text
+KEPLERLLM_HIDE_SETTINGS_BUTTONS=1
+```
 
 Mantenha o named volume:
 

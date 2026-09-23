@@ -1,4 +1,5 @@
 import useUser from "@/hooks/useUser";
+import useHideSettingsButtons from "@/hooks/useHideSettingsButtons";
 import paths from "@/utils/paths";
 import { ArrowUUpLeft, Wrench } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
@@ -7,8 +8,10 @@ import { useMatch } from "react-router-dom";
 export default function SettingsButton() {
   const isInSettings = !!useMatch("/settings/*");
   const { user } = useUser();
+  const hideSettingsButtons = useHideSettingsButtons();
 
   if (user && user?.role === "default") return null;
+  if (hideSettingsButtons) return null;
 
   if (isInSettings)
     return (
