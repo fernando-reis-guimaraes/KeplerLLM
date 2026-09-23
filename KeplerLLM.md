@@ -510,7 +510,7 @@ Enable the opt-in AnythingLLM Agent Skills on first boot from a single environme
 DEFAULT_AGENT_SKILLS=filesystem-agent,create-files-agent,create-chart,web-browsing,sql-agent,create-scheduled-job
 ```
 
-- On a fresh/unconfigured instance, the listed Agent Skill toggles start enabled.
+- On a fresh/unconfigured instance, the listed Agent Skills are persisted as enabled defaults, subject to the existing upstream availability, mode, and runtime restrictions.
 - Setting `DEFAULT_AGENT_SKILLS` explicitly to the empty string is intentional configuration: it bootstraps an empty list, so no opt-in Agent Skills are enabled initially.
 - Once the `default_agent_skills` row exists, it is never overwritten, even when `DEFAULT_AGENT_SKILLS` is currently different. Changes made through the UI or API survive restart and redeploy. After initialization, the database is the source of truth; the environment variable is a default/bootstrap value, not continuously authoritative configuration.
 - An unknown skill identifier fails startup clearly and early with an error naming `DEFAULT_AGENT_SKILLS` and the invalid identifier, along with the accepted identifiers. Nothing is partially persisted when one member is invalid.
@@ -533,6 +533,7 @@ create-scheduled-job
 - Bootstrap-only: the environment variable is read to initialize the setting. It never overrides database values on restart.
 - The existence of the `system_settings` row with label `default_agent_skills` is itself the initialized marker. No extra bootstrap marker setting is used.
 - This variable controls the opt-in `default_agent_skills` set only. It does not control the default-enabled skills represented by `disabled_agent_skills` (`rag-memory`, `document-summarizer`, `web-scraping`), whose semantics are unchanged.
+- `DEFAULT_AGENT_SKILLS` only initializes the existing `default_agent_skills` system setting. It does not bypass skill availability checks (for example `filesystem-agent` and `create-files-agent`) or single-user/multi-user restrictions (for example `create-scheduled-job`, which is unavailable in multi-user mode).
 - Server-side validation uses a small explicit canonical list aligned with the configurable skills shown by the Agent Skills UI, so internal plugins, app-integration skills (`gmail-agent`, `google-calendar-agent`, `outlook-agent`), imported Custom Skills, Agent Flows, and MCP servers can never be enabled through this variable.
 - The bootstrap completes before the listening socket becomes available, following the default workspace bootstrap fail-fast pattern. Startup logs only safe metadata (skill names and count), never secrets.
 - No database schema migration is required.
