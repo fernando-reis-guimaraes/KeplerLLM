@@ -200,12 +200,14 @@ Present KeplerLLM as the product name everywhere the user can see it, while keep
 - Generated artifacts carry KeplerLLM branding (exported chats, office documents, chat widget defaults).
 - Bot messages and developer API documentation are titled KeplerLLM.
 - External product links point at KeplerLLM properties: the GitHub icon links to `https://github.com/ultra-mega-apps`, docs and support pages link to `https://ultra-mega-apps.com`, the Discord invite is replaced by WhatsApp at `https://wa.me/13025505015`, and the default support email is `support@ultra-mega-apps.com`. The onboarding survey endpoint no longer reports to upstream.
+- Logo wordmarks show KeplerLLM instead of AnythingLLM. The infinity icon pixels are preserved. `Kepler` keeps the original wordmark color (white `#FFFFFF` on dark backgrounds, dark `#222628` on light backgrounds) and `LLM` uses blue `#2E90FA`. Canvas size, proportions, transparency, and layout are unchanged.
 
 #### Rules and limits
 
 - Text-only change. Package names, imports, identifiers, file paths, storage keys, localStorage keys, API routes, request/response contracts, provider slugs (including `anythingllm-router`), and integration header tokens remain unchanged. Functional upstream service endpoints stay on their original URLs.
 - Functional service integrations keep working: model downloads from the upstream CDN, Community Hub imports and profile links, and the Docker Chromium download stay on upstream endpoints.
-- Logo artwork and static media assets are unchanged.
+- Logo filenames, file paths, canvas sizes, transparency, and infinity icon pixels remain unchanged for upstream compatibility; only wordmark text pixels changed to KeplerLLM (`Kepler` in `#FFFFFF` or `#222628`, `LLM` in `#2E90FA`, Plus Jakarta Sans). Icon-only assets (`anything-llm-icon.png`, `anything-llm-infinity.png`, favicons) are unchanged. `frontend/dist/` logos are generated build output and regenerate on build.
+- Rebranded wordmark files: `frontend/src/media/logo/anything-llm.png`, `frontend/src/media/logo/anything-llm-dark.png`, `frontend/public/anything-llm-light.png`, `frontend/public/anything-llm-dark.png`, `server/storage/assets/anything-llm.png`, `server/storage/assets/anything-llm-invert.png`, `server/utils/agents/aibitat/plugins/create-files/assets/anything-llm.png`, `server/utils/agents/aibitat/plugins/create-files/assets/anything-llm-invert.png`, `open-computer/services/public/anythingllm-wordmark.png`, plus submodule files `embed/src/assets/anything-llm-dark.png` and `browser-extension/src/media/anything-llm.png`. Upgrade note: upstream logo updates will conflict; re-apply the KeplerLLM wordmark rendering when merging.
 - The embed widget and the browser extension live in forked repositories (`frginbox/KeplerLLM_Embed`, `frginbox/KeplerLLM_Browser-Extension`, with personal forks under `fernando-reis-guimaraes/`), wired as git submodules. Their committed widget build under `frontend/public/embed/` is regenerated from the forked embed source.
 - There are no product email templates in the codebase; the rule applies to bot and notification messages instead.
 
