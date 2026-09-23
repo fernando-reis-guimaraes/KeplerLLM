@@ -4,7 +4,7 @@
 
 KeplerLLM is a fork of AnythingLLM. It preserves upstream behavior except for the fork changes defined below.
 
-The fork adds persistent UI configuration with a single storage volume, a product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging with human approval, and dynamic SQLite/PostgreSQL backend selection from a single Docker image.
+The fork adds persistent UI configuration with a single storage volume, a product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging with human approval, dynamic SQLite/PostgreSQL backend selection from a single Docker image, and an optional OpenAI-compatible Responses API mode for the Generic OpenAI provider.
 
 ## Fork changes
 
@@ -266,6 +266,53 @@ The full `DATABASE_URL` value and its password are never logged.
 - A second Docker image or tag for PostgreSQL.
 - Neon-specific behavior beyond standard PostgreSQL compatibility.
 
+### Requirement 7 - Generic OpenAI Responses API mode
+
+#### Objective
+
+Allow the Generic OpenAI provider (`LLM_PROVIDER=generic-openai`) to use OpenAI-compatible Responses API endpoints (`POST /responses`) instead of Chat Completions (`POST /chat/completions`), selected entirely through an environment variable, without changing behavior for existing installations.
+
+#### Observable behavior
+
+- When `GENERIC_OPEN_AI_API_MODE` is unset, the provider uses `chat-completions`, exactly as before this change.
+- When set to `chat-completions`, behavior is unchanged.
+- When set to `responses`, normal chat, streaming chat, and native agent/MCP tool calling run against the Responses API through the official OpenAI SDK (`responses.create`).
+- Responses results (text, reasoning, tool calls, token usage, metrics) are normalized into the existing internal contracts, so chat, streaming, and the agent loop work without protocol-specific branches downstream.
+- During multi-turn agent tool execution, the provider chains the Responses continuation identifier within the active run when the provider supports it, and retries once stateless when the provider rejects it.
+- An invalid value logs a clear warning and falls back to `chat-completions`.
+- At startup the provider logs the selected protocol (without credentials):
+
+```text
+[GenericOpenAiLLM] Inference API: https://api.meta.ai/v1 Model: muse-spark-1.3-contributor API mode: responses
+```
+
+Example configuration:
+
+```env
+LLM_PROVIDER=generic-openai
+GENERIC_OPEN_AI_BASE_PATH=https://api.meta.ai/v1
+GENERIC_OPEN_AI_MODEL_PREF=muse-spark-1.3-contributor
+GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT=1048576
+GENERIC_OPEN_AI_MAX_TOKENS=131072
+GENERIC_OPEN_AI_API_KEY=<secret>
+GENERIC_OPEN_AI_API_MODE=responses
+```
+
+#### Rules and limits
+
+- Environment-variable configuration only. There is no UI setting for the protocol mode.
+- `chat-completions` remains the default; existing installations without the new variable observe no behavioral change.
+- The provider must support the Responses API; Chat Completions-only backends keep working through the default mode.
+- Responses mode is particularly useful for agentic workloads and providers that support reasoning continuity.
+- In Responses mode `GENERIC_OPEN_AI_MAX_TOKENS` maps to `max_output_tokens`, Responses usage (`input_tokens`/`output_tokens`/`total_tokens`) maps to the existing prompt/completion/total metrics, and `temperature` is omitted from Responses requests because Responses-only reasoning deployments commonly reject it. Chat Completions mode keeps sending `temperature` exactly as before.
+- Model discovery (`/v1/models` via `models.list()`) is unchanged, and `GENERIC_OPEN_AI_MODEL_PREF` may still name a model that `/models` does not list.
+- Relevant implementation lives in `server/utils/AiProviders/genericOpenAi/` (shared protocol adapters in `responses.js`) and `server/utils/agents/aibitat/providers/genericOpenAi.js`. The AIbitat agent loop itself is unchanged.
+
+#### Out of scope
+
+- Supporting providers that are not OpenAI-compatible.
+- Persisting Responses continuation identifiers across conversations; chaining state is scoped to the active agent run.
+
 ## Appendix - Operational reference
 
 This appendix records only the runtime and publishing facts needed to operate the fork. It does not describe implementation.
@@ -285,6 +332,7 @@ The fork tracks a stable AnythingLLM baseline. The current baseline is:
 | `STORAGE_DIR`                  | `/app/server/storage` | Standard storage volume. Holds UI configuration and skill data. Still required with PostgreSQL. |
 | `KEPLERLLM_MODEL_DISPLAY_NAME` | `Kepler AI`           | Product label shown in the workspace model picker.                                             |
 | `DATABASE_URL`                 | unset                 | When unset, SQLite is used. When set to `postgresql://...`, PostgreSQL is used.                |
+| `GENERIC_OPEN_AI_API_MODE`     | `chat-completions`    | Generic OpenAI protocol: `chat-completions` (default) or `responses` (Responses API).          |
 
 The deployment mounts only:
 
