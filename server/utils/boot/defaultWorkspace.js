@@ -36,8 +36,23 @@ function isPresent(env, key) {
   return env[key] !== undefined;
 }
 
+// KeplerLLM fork: optional prompt sources declared but left empty (common in
+// Docker/CapRover) must behave as not configured so they never shadow a
+// usable lower-precedence source. Used only for FILE/BASE64 presence;
+// strict empty-vs-unset distinction elsewhere is unchanged.
+function hasNonEmptyValue(env, key) {
+  return typeof env[key] === "string" && env[key].trim() !== "";
+}
+
+function isBootstrapKeyConfigured(env, key) {
+  if (key === ENV_KEYS.PROMPT_FILE || key === ENV_KEYS.PROMPT_BASE64) {
+    return hasNonEmptyValue(env, key);
+  }
+  return isPresent(env, key);
+}
+
 function isEnabled(env = process.env) {
-  return ALL_ENV_KEYS.some((key) => isPresent(env, key));
+  return ALL_ENV_KEYS.some((key) => isBootstrapKeyConfigured(env, key));
 }
 
 function fail(message) {
@@ -57,8 +72,12 @@ function decodeUtf8Fatal(buffer, contextMessage) {
 }
 
 function resolveSystemPrompt(env = process.env) {
-  const hasFile = isPresent(env, ENV_KEYS.PROMPT_FILE);
-  const hasBase64 = isPresent(env, ENV_KEYS.PROMPT_BASE64);
+  // Empty or whitespace-only FILE/BASE64 values behave as not configured so
+  // a declared-but-empty optional variable never shadows a usable
+  // lower-precedence source. Non-empty invalid values still fail clearly
+  // without falling back. Plain "" keeps meaning "no explicit prompt".
+  const hasFile = hasNonEmptyValue(env, ENV_KEYS.PROMPT_FILE);
+  const hasBase64 = hasNonEmptyValue(env, ENV_KEYS.PROMPT_BASE64);
   const hasPlain = isPresent(env, ENV_KEYS.PROMPT);
 
   if (hasFile) {
@@ -398,10 +417,14 @@ async function bootstrapDefaultWorkspace({
     }
   }
 
-  // No explicit slug: identify by name first (survives the automatic
-  // suffixed-slug case), then fall back to creation with upstream slug
-  // generation. The slug itself is never used to overwrite anything.
-  const existingByName = await WM.get({ name: config.name });
+  // No explicit slug: identify by normalized name first (survives the
+  // automatic suffixed-slug case), then fall back to creation with upstream
+  // slug generation. The name is normalized once through the existing model
+  // validation so lookup, creation, slug generation, and race recovery all
+  // use the persisted form and restarts stay idempotent. The slug itself is
+  // never used to overwrite anything.
+  const normalizedName = WM.validations.name(config.name);
+  const existingByName = await WM.get({ name: normalizedName });
   if (existingByName) {
     logger.log(
       `[KeplerLLM] Default workspace bootstrap skipped (already exists) ${safeSummary(config)}`
@@ -411,7 +434,7 @@ async function bootstrapDefaultWorkspace({
 
   let expectedSlug = null;
   try {
-    expectedSlug = WM.slugify(config.name, { lower: true }) || null;
+    expectedSlug = WM.slugify(normalizedName, { lower: true }) || null;
   } catch {
     expectedSlug = null;
   }
@@ -428,7 +451,7 @@ async function bootstrapDefaultWorkspace({
 
   try {
     const { workspace, message } = await WM.new(
-      config.name,
+      normalizedName,
       null,
       additionalFields
     );
@@ -438,7 +461,7 @@ async function bootstrapDefaultWorkspace({
       );
       return { bootstrapped: true, created: true, workspace };
     }
-    const racedByName = await WM.get({ name: config.name });
+    const racedByName = await WM.get({ name: normalizedName });
     if (racedByName) {
       logger.log(
         `[KeplerLLM] Default workspace bootstrap skipped (already exists) ${safeSummary(config)}`
@@ -447,7 +470,7 @@ async function bootstrapDefaultWorkspace({
     }
     if (expectedSlug) {
       const racedBySlug = await WM.get({ slug: expectedSlug });
-      if (racedBySlug && racedBySlug.name === config.name) {
+      if (racedBySlug && racedBySlug.name === normalizedName) {
         logger.log(
           `[KeplerLLM] Default workspace bootstrap skipped (already exists) ${safeSummary(config)}`
         );
@@ -460,7 +483,7 @@ async function bootstrapDefaultWorkspace({
   } catch (error) {
     if (error?.message?.startsWith("[KeplerLLM] Failed to bootstrap"))
       throw error;
-    const raced = await WM.get({ name: config.name }).catch(() => null);
+    const raced = await WM.get({ name: normalizedName }).catch(() => null);
     if (raced) {
       logger.log(
         `[KeplerLLM] Default workspace bootstrap skipped (already exists) ${safeSummary(config)}`
@@ -475,6 +498,7 @@ module.exports = {
   ENV_KEYS,
   ALL_ENV_KEYS,
   isEnabled,
+  hasNonEmptyValue,
   parseDefaultWorkspaceConfig,
   bootstrapDefaultWorkspace,
 };

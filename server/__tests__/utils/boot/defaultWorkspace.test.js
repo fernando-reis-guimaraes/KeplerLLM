@@ -641,3 +641,126 @@ describe("default workspace bootstrap: backend compatibility", () => {
     expect(model._store[0].openAiPrompt).toBe("postgres path");
   });
 });
+
+describe("default workspace bootstrap: empty optional prompt sources", () => {
+  const base64Prompt = "You are Kepler AI.";
+  const base64Value = Buffer.from(base64Prompt, "utf8").toString("base64");
+
+  it('FILE="" + valid BASE64 -> BASE64 wins', async () => {
+    const parsed = parseDefaultWorkspaceConfig(
+      envObject({
+        [ENV_KEYS.NAME]: "Kepler",
+        [ENV_KEYS.PROMPT_FILE]: "",
+        [ENV_KEYS.PROMPT_BASE64]: base64Value,
+      })
+    );
+    expect(parsed.systemPromptSource).toBe("base64");
+    expect(parsed.openAiPrompt).toBe(base64Prompt);
+    const { model, getSystemDefaultPrompt } = createFakeWorkspace();
+    await bootstrapDefaultWorkspace({
+      env: envObject({
+        [ENV_KEYS.NAME]: "Kepler",
+        [ENV_KEYS.SLUG]: "kepler",
+        [ENV_KEYS.PROMPT_FILE]: "",
+        [ENV_KEYS.PROMPT_BASE64]: base64Value,
+      }),
+      WorkspaceModel: model,
+      getSystemDefaultPrompt,
+      logger: silentLogger(),
+    });
+    expect(model._store[0].openAiPrompt).toBe(base64Prompt);
+  });
+
+  it('FILE="   " + valid BASE64 -> BASE64 wins', () => {
+    const parsed = parseDefaultWorkspaceConfig(
+      envObject({
+        [ENV_KEYS.NAME]: "Kepler",
+        [ENV_KEYS.PROMPT_FILE]: "   ",
+        [ENV_KEYS.PROMPT_BASE64]: base64Value,
+      })
+    );
+    expect(parsed.systemPromptSource).toBe("base64");
+    expect(parsed.openAiPrompt).toBe(base64Prompt);
+  });
+
+  it('BASE64="" + plain -> plain wins', () => {
+    const parsed = parseDefaultWorkspaceConfig(
+      envObject({
+        [ENV_KEYS.NAME]: "Kepler",
+        [ENV_KEYS.PROMPT]: "plain prompt",
+        [ENV_KEYS.PROMPT_BASE64]: "",
+      })
+    );
+    expect(parsed.systemPromptSource).toBe("plain");
+    expect(parsed.openAiPrompt).toBe("plain prompt");
+  });
+
+  it('BASE64="   " + plain -> plain wins', () => {
+    const parsed = parseDefaultWorkspaceConfig(
+      envObject({
+        [ENV_KEYS.NAME]: "Kepler",
+        [ENV_KEYS.PROMPT]: "plain prompt",
+        [ENV_KEYS.PROMPT_BASE64]: "   ",
+      })
+    );
+    expect(parsed.systemPromptSource).toBe("plain");
+    expect(parsed.openAiPrompt).toBe("plain prompt");
+  });
+
+  it("non-empty invalid BASE64 + plain -> fail, no fallback", () => {
+    expect(() =>
+      parseDefaultWorkspaceConfig(
+        envObject({
+          [ENV_KEYS.NAME]: "Kepler",
+          [ENV_KEYS.PROMPT]: "plain prompt",
+          [ENV_KEYS.PROMPT_BASE64]: "!!!not-base64!!!",
+        })
+      )
+    ).toThrow(/BASE64.*malformed/i);
+  });
+
+  it("non-empty missing FILE + valid BASE64 -> fail, no fallback", () => {
+    expect(() =>
+      parseDefaultWorkspaceConfig(
+        envObject({
+          [ENV_KEYS.NAME]: "Kepler",
+          [ENV_KEYS.PROMPT_BASE64]: base64Value,
+          [ENV_KEYS.PROMPT_FILE]: "/definitely/missing/prompt.txt",
+        })
+      )
+    ).toThrow(/does not exist/i);
+  });
+
+  it("empty FILE/BASE64 alone do not enable bootstrap", () => {
+    expect(
+      parseDefaultWorkspaceConfig(envObject({ [ENV_KEYS.PROMPT_FILE]: "" }))
+    ).toEqual({ enabled: false });
+    expect(
+      parseDefaultWorkspaceConfig(envObject({ [ENV_KEYS.PROMPT_BASE64]: "  " }))
+    ).toEqual({ enabled: false });
+  });
+});
+
+describe("default workspace bootstrap: long workspace names", () => {
+  it("normalizes names over 255 chars: two bootstraps, exactly one workspace", async () => {
+    const longName = "q".repeat(300);
+    const { model, getSystemDefaultPrompt } = createFakeWorkspace();
+    const env = envObject({ [ENV_KEYS.NAME]: longName });
+    const first = await bootstrapDefaultWorkspace({
+      env,
+      WorkspaceModel: model,
+      getSystemDefaultPrompt,
+      logger: silentLogger(),
+    });
+    const second = await bootstrapDefaultWorkspace({
+      env,
+      WorkspaceModel: model,
+      getSystemDefaultPrompt,
+      logger: silentLogger(),
+    });
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(false);
+    expect(model._store).toHaveLength(1);
+    expect(model._store[0].name).toBe("q".repeat(255));
+  });
+});
