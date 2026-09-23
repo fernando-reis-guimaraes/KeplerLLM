@@ -150,6 +150,11 @@ const TRANSLATIONS = {
     title: "Nauja darbo sritis",
     placeholder: "Mano darbo sritis",
   },
+  "workspace-thread": {
+    thread: "Tema",
+    "new-thread": "Nauja tema",
+    "starting-thread": "Paleidžiama tema...",
+  },
   "workspaces—settings": {
     general: "Bendrieji nustatymai",
     chat: "Pokalbių nustatymai",

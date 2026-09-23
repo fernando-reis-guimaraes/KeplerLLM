@@ -151,6 +151,11 @@ const TRANSLATIONS = {
     title: "ສ້າງພື້ນທີ່ເຮັດວຽກໃໝ່",
     placeholder: "ພື້ນທີ່ເຮັດວຽກຂອງຂ້ອຍ",
   },
+  "workspace-thread": {
+    thread: "Thread",
+    "new-thread": "Thread ໃໝ່",
+    "starting-thread": "ກຳລັງເລີ່ມ Thread...",
+  },
   "workspaces—settings": {
     general: "ການຕັ້ງຄ່າທົ່ວໄປ",
     chat: "ການຕັ້ງຄ່າການສົນທະນາ",

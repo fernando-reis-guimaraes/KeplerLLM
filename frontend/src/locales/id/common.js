@@ -153,6 +153,11 @@ const TRANSLATIONS = {
     title: "Ruang Kerja Baru",
     placeholder: "Ruang Kerja Saya",
   },
+  "workspace-thread": {
+    thread: "Thread",
+    "new-thread": "Thread baru",
+    "starting-thread": "Memulai thread...",
+  },
   "workspaces—settings": {
     general: "Pengaturan Umum",
     chat: "Pengaturan Obrolan",

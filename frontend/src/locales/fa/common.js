@@ -136,6 +136,11 @@ const TRANSLATIONS = {
     title: "فضای کاری جدید",
     placeholder: "فضای کاری من",
   },
+  "workspace-thread": {
+    thread: "گفتگو",
+    "new-thread": "گفتگوی جدید",
+    "starting-thread": "در حال شروع گفتگو...",
+  },
   "workspaces—settings": {
     general: "تنظیمات عمومی",
     chat: "تنظیمات گفتگو",

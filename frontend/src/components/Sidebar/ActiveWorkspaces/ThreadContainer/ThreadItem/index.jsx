@@ -10,6 +10,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 const THREAD_CALLOUT_DETAIL_WIDTH = 26;
@@ -24,10 +25,18 @@ export default function ThreadItem({
   hasNext,
   ctrlPressed = false,
 }) {
+  const { t } = useTranslation();
   const { slug: urlSlug, threadSlug = null } = useParams();
   const workspaceSlug = workspace?.slug ?? urlSlug;
   const optionsContainer = useRef(null);
   const [showOptions, setShowOptions] = useState(false);
+  // Threads stored with the legacy server default ("Thread" or "*New Thread")
+  // are rendered with the translated display name so existing rows translate
+  // without a data migration. The server default itself is unchanged.
+  const displayName =
+    thread?.name === "Thread" || thread?.name === "*New Thread"
+      ? t("workspace-thread.thread")
+      : thread?.name;
   const linkTo = thread.virtual
     ? "/"
     : !thread.slug
@@ -100,7 +109,7 @@ export default function ThreadItem({
             ref={ref}
             to={linkTo}
             data-tooltip-id="workspace-thread-name"
-            data-tooltip-content={thread.name}
+            data-tooltip-content={displayName}
             className="w-full pl-2 py-1 overflow-hidden"
             aria-current={isActive ? "page" : ""}
           >
@@ -111,7 +120,7 @@ export default function ThreadItem({
                   : "text-theme-text-primary font-medium light:text-slate-800"
               }`}
             >
-              {thread.name}
+              {displayName}
             </p>
           </Link>
         )}

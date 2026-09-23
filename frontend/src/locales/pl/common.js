@@ -143,6 +143,11 @@ const TRANSLATIONS = {
     title: "Nowy obszar roboczy",
     placeholder: "Mój obszar roboczy",
   },
+  "workspace-thread": {
+    thread: "Wątek",
+    "new-thread": "Nowy wątek",
+    "starting-thread": "Uruchamianie wątku...",
+  },
   "workspaces—settings": {
     general: "Ustawienia ogólne",
     chat: "Ustawienia czatu",

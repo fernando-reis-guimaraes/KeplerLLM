@@ -139,6 +139,11 @@ const TRANSLATIONS = {
     title: "新工作区",
     placeholder: "我的工作区",
   },
+  "workspace-thread": {
+    thread: "线程",
+    "new-thread": "新建线程",
+    "starting-thread": "正在启动线程...",
+  },
   "workspaces—settings": {
     general: "通用设置",
     chat: "聊天设置",

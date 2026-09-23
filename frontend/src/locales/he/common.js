@@ -140,6 +140,11 @@ const TRANSLATIONS = {
     title: "סביבת עבודה חדשה",
     placeholder: "סביבת העבודה שלי",
   },
+  "workspace-thread": {
+    thread: "דיון",
+    "new-thread": "דיון חדש",
+    "starting-thread": "מתחיל דיון...",
+  },
   "workspaces—settings": {
     general: "הגדרות כלליות",
     chat: "הגדרות צ'אט",

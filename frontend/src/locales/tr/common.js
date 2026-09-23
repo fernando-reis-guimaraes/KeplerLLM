@@ -135,6 +135,11 @@ const TRANSLATIONS = {
     title: "Yeni Çalışma Alanı",
     placeholder: "Benim Çalışma Alanım",
   },
+  "workspace-thread": {
+    thread: "Sohbet",
+    "new-thread": "Yeni sohbet",
+    "starting-thread": "Sohbet başlatılıyor...",
+  },
   "workspaces—settings": {
     general: "Genel Ayarlar",
     chat: "Sohbet Ayarları",

@@ -150,6 +150,11 @@ const TRANSLATIONS = {
     title: "Nový pracovní prostor",
     placeholder: "Můj pracovní prostor",
   },
+  "workspace-thread": {
+    thread: "Vlákno",
+    "new-thread": "Nové vlákno",
+    "starting-thread": "Spouštění vlákna...",
+  },
   "workspaces—settings": {
     general: "Obecná nastavení",
     chat: "Nastavení chatu",

@@ -135,6 +135,11 @@ const TRANSLATIONS = {
     title: "Новая Рабочая Область",
     placeholder: "Моя Рабочая Область",
   },
+  "workspace-thread": {
+    thread: "Нить",
+    "new-thread": "Новая нить",
+    "starting-thread": "Создание нити...",
+  },
   "workspaces—settings": {
     general: "Общие настройки",
     chat: "Настройки чата",

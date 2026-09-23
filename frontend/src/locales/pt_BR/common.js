@@ -143,6 +143,11 @@ const TRANSLATIONS = {
     title: "Novo Workspace",
     placeholder: "Meu Workspace",
   },
+  "workspace-thread": {
+    thread: "Conversa",
+    "new-thread": "Nova conversa",
+    "starting-thread": "Iniciando conversa...",
+  },
   "workspaces—settings": {
     general: "Configurações Gerais",
     chat: "Configurações de Chat",

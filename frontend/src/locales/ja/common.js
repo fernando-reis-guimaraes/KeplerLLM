@@ -135,6 +135,11 @@ const TRANSLATIONS = {
     title: "新しいワークスペース",
     placeholder: "マイワークスペース",
   },
+  "workspace-thread": {
+    thread: "スレッド",
+    "new-thread": "新しいスレッド",
+    "starting-thread": "スレッドを開始しています...",
+  },
   "workspaces—settings": {
     general: "一般設定",
     chat: "チャット設定",

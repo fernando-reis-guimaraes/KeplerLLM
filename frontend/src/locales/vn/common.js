@@ -135,6 +135,11 @@ const TRANSLATIONS = {
     title: "Không gian làm việc mới",
     placeholder: "Không gian làm việc của tôi",
   },
+  "workspace-thread": {
+    thread: "Cuộc trò chuyện",
+    "new-thread": "Cuộc trò chuyện mới",
+    "starting-thread": "Đang bắt đầu cuộc trò chuyện...",
+  },
   "workspaces—settings": {
     general: "Cài đặt chung",
     chat: "Cài đặt Trò chuyện",

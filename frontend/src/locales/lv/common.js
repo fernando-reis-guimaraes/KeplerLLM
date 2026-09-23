@@ -143,6 +143,11 @@ const TRANSLATIONS = {
     title: "Jauna darba telpa",
     placeholder: "Mana darba telpa",
   },
+  "workspace-thread": {
+    thread: "Tēma",
+    "new-thread": "Jauna tēma",
+    "starting-thread": "Tiek sākta tēma...",
+  },
   "workspaces—settings": {
     general: "Vispārīgie iestatījumi",
     chat: "Sarunas iestatījumi",

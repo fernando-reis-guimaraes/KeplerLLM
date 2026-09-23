@@ -152,6 +152,11 @@ const TRANSLATIONS = {
     title: "Nou espai de treball",
     placeholder: "El meu espai de treball",
   },
+  "workspace-thread": {
+    thread: "Fil",
+    "new-thread": "Fil nou",
+    "starting-thread": "Iniciant el fil...",
+  },
   "workspaces—settings": {
     general: "Configuració general",
     chat: "Configuració del xat",

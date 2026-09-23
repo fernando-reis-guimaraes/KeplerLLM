@@ -3,6 +3,7 @@ import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { Plus, CircleNotch, Trash } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ThreadItem from "./ThreadItem";
 import { useNavigate, useParams } from "react-router-dom";
 import useHoverMetaKey from "./hooks";
@@ -13,6 +14,7 @@ export default function ThreadContainer({
   workspace,
   isVirtualThread = false,
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { threadSlug = null } = useParams();
   const [threads, setThreads] = useState([]);
@@ -171,7 +173,11 @@ export default function ThreadContainer({
           activeIdx={activeThreadIdx}
           isActive={true}
           workspace={workspace}
-          thread={{ slug: null, name: "*New Thread", virtual: true }}
+          thread={{
+            slug: null,
+            name: t("workspace-thread.thread"),
+            virtual: true,
+          }}
           hasNext={false}
         />
       )}
@@ -189,6 +195,7 @@ export default function ThreadContainer({
 }
 
 function NewThreadButton({ workspace, onNewThread }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const onClick = async () => {
@@ -234,11 +241,11 @@ function NewThreadButton({ workspace, onNewThread }) {
 
         {loading ? (
           <p className="text-left text-white light:text-theme-text-primary text-sm">
-            Starting Thread...
+            {t("workspace-thread.starting-thread")}
           </p>
         ) : (
           <p className="text-left text-white light:text-theme-text-primary text-sm font-semibold">
-            New Thread
+            {t("workspace-thread.new-thread")}
           </p>
         )}
       </div>

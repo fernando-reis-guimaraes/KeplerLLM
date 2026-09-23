@@ -528,6 +528,34 @@ create-scheduled-job
 - Configurar Gmail, Google Calendar, Outlook, Custom Skills, Agent Flows ou MCP servers.
 - Qualquer tipo de automatic data migration.
 
+### Requirement 12 - Internacionalizacao dos threads na sidebar
+
+#### Objective
+
+Traduzir os labels de thread da sidebar do workspace que o upstream AnythingLLM deixa fixos em ingles, sem mudar o comportamento do server ou os dados armazenados.
+
+#### Observable behavior
+
+- A sidebar usa as chaves `workspace-thread` de `frontend/src/locales/*/common.js`:
+  - `thread` para o nome exibido da conversa (por exemplo `Conversa` em portugues).
+  - `new-thread` para o botao de criacao (por exemplo `Nova conversa` em portugues).
+  - `starting-thread` para o estado de loading da criacao.
+- A linha da thread virtual e o botao `New Thread` passam por `useTranslation()` em `frontend/src/components/Sidebar/ActiveWorkspaces/ThreadContainer/index.jsx`.
+- Linhas salvas com o nome default legado do server (`Thread` ou `*New Thread`) sao exibidas com o nome traduzido em `frontend/src/components/Sidebar/ActiveWorkspaces/ThreadContainer/ThreadItem/index.jsx`, de modo que workspaces existentes traduzem sem data migration.
+- O idioma selecionado na UI controla os labels. O comportamento em ingles permanece inalterado (`Thread` / `New Thread`).
+
+#### Rules and limits
+
+- Mudanca apenas de display. O `WorkspaceThread.defaultName` em `server/models/workspaceThread.js` continua `"Thread"`, e o comportamento de rename (`autoRenameThread`) permanece inalterado.
+- Nenhuma database schema migration e necessaria e nenhum nome de thread armazenado e reescrito.
+- As chaves de traducao sao definidas em `frontend/src/locales/en/common.js` e replicadas em todos os arquivos de locale para que `yarn translations:verify` passe.
+
+#### Out of scope
+
+- Traduzir outras strings fixas de gerenciamento de threads (prompts de rename/delete, toasts, UI de bulk-delete).
+- Mudar o nome default de thread no server por locale.
+- Migrar ou reescrever linhas de thread existentes.
+
 ## Appendix - Operational reference
 
 Este apêndice registra apenas os fatos de runtime e publishing necessários para operar o fork. Não descreve implementation.

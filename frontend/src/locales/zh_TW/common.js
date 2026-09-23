@@ -131,6 +131,11 @@ const TRANSLATIONS = {
     title: "新增工作區",
     placeholder: "我的工作區",
   },
+  "workspace-thread": {
+    thread: "對話串",
+    "new-thread": "新增對話串",
+    "starting-thread": "正在啟動對話串...",
+  },
   "workspaces—settings": {
     general: "一般設定",
     chat: "對話設定",

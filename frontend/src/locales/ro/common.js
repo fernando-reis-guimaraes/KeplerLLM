@@ -144,6 +144,11 @@ const TRANSLATIONS = {
     title: "Spațiu de lucru nou",
     placeholder: "Spațiul meu de lucru",
   },
+  "workspace-thread": {
+    thread: "Thread",
+    "new-thread": "Thread nou",
+    "starting-thread": "Se pornește thread-ul...",
+  },
   "workspaces—settings": {
     general: "Setări generale",
     chat: "Setări chat",

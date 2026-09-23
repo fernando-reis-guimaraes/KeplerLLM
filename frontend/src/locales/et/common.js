@@ -142,6 +142,11 @@ const TRANSLATIONS = {
     title: "Uus tööruum",
     placeholder: "Minu tööruum",
   },
+  "workspace-thread": {
+    thread: "Teema",
+    "new-thread": "Uus teema",
+    "starting-thread": "Teema käivitamine...",
+  },
   "workspaces—settings": {
     general: "Üldseaded",
     chat: "Vestluse seaded",

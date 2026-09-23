@@ -141,6 +141,11 @@ const TRANSLATIONS = {
     title: "새 워크스페이스",
     placeholder: "내 워크스페이스",
   },
+  "workspace-thread": {
+    thread: "스레드",
+    "new-thread": "새 스레드",
+    "starting-thread": "스레드 시작 중...",
+  },
   "workspaces—settings": {
     general: "일반 설정",
     chat: "채팅 설정",

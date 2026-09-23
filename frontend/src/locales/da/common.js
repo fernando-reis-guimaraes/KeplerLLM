@@ -137,6 +137,11 @@ const TRANSLATIONS = {
     title: "Nyt arbejdsområde",
     placeholder: "Mit arbejdsområde",
   },
+  "workspace-thread": {
+    thread: "Tråd",
+    "new-thread": "Ny tråd",
+    "starting-thread": "Starter tråd...",
+  },
   "workspaces—settings": {
     general: "Generelle indstillinger",
     chat: "Chatindstillinger",

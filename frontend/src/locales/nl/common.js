@@ -136,6 +136,11 @@ const TRANSLATIONS = {
     title: "Nieuwe Werkruimte",
     placeholder: "Mijn Werkruimte",
   },
+  "workspace-thread": {
+    thread: "Thread",
+    "new-thread": "Nieuwe thread",
+    "starting-thread": "Thread starten...",
+  },
   "workspaces—settings": {
     general: "Algemene Instellingen",
     chat: "Chat Instellingen",

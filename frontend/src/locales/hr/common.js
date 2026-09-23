@@ -152,6 +152,11 @@ const TRANSLATIONS = {
     title: "Novi radni prostor",
     placeholder: "Moj radni prostor",
   },
+  "workspace-thread": {
+    thread: "Nit",
+    "new-thread": "Nova nit",
+    "starting-thread": "Pokretanje niti...",
+  },
   "workspaces—settings": {
     general: "Opće postavke",
     chat: "Postavke razgovora",

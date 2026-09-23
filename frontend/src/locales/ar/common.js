@@ -134,6 +134,11 @@ const TRANSLATIONS = {
     title: "مساحة عمل جديدة",
     placeholder: "مساحتي للعمل",
   },
+  "workspace-thread": {
+    thread: "محادثة",
+    "new-thread": "محادثة جديدة",
+    "starting-thread": "جارٍ بدء المحادثة...",
+  },
   "workspaces—settings": {
     general: "الإعدادات العامة",
     chat: "إعدادات المحادثة",

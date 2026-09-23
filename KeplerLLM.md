@@ -545,6 +545,34 @@ create-scheduled-job
 - Configuring Gmail, Google Calendar, Outlook, Custom Skills, Agent Flows, or MCP servers.
 - Automatic data migration of any kind.
 
+### Requirement 12 - Sidebar thread internationalization
+
+#### Objective
+
+Translate the workspace sidebar thread labels that upstream AnythingLLM hardcodes in English, without changing server behavior or stored data.
+
+#### Observable behavior
+
+- The sidebar uses the `workspace-thread` translation keys from `frontend/src/locales/*/common.js`:
+  - `thread` for the thread display name (for example `Conversa` in Portuguese).
+  - `new-thread` for the creation button (for example `Nova conversa` in Portuguese).
+  - `starting-thread` for the creation loading state.
+- The virtual thread row and the `New Thread` button render through `useTranslation()` in `frontend/src/components/Sidebar/ActiveWorkspaces/ThreadContainer/index.jsx`.
+- Rows stored with the legacy server default name (`Thread` or `*New Thread`) render with the translated display name in `frontend/src/components/Sidebar/ActiveWorkspaces/ThreadContainer/ThreadItem/index.jsx`, so existing workspaces translate without a data migration.
+- The selected UI language controls the labels. English behavior is unchanged (`Thread` / `New Thread`).
+
+#### Rules and limits
+
+- Display-only change. `WorkspaceThread.defaultName` in `server/models/workspaceThread.js` remains `"Thread"`, and thread rename behavior (`autoRenameThread`) is unchanged.
+- No database schema migration is required and no stored thread names are rewritten.
+- Translation keys are defined in `frontend/src/locales/en/common.js` and replicated across all locale files so `yarn translations:verify` passes.
+
+#### Out of scope
+
+- Translating other hardcoded thread management strings (rename/delete prompts, toasts, bulk-delete UI).
+- Changing the server-side default thread name per locale.
+- Migrating or rewriting existing thread rows.
+
 ## Appendix - Operational reference
 
 This appendix records only the runtime and publishing facts needed to operate the fork. It does not describe implementation.
