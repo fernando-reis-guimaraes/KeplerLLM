@@ -616,6 +616,8 @@ const SystemSettings = {
         "DISABLE_VIEW_CHAT_HISTORY" in process.env || false,
       WorkspaceDeletionProtection:
         "WORKSPACE_DELETION_PROTECTION" in process.env || false,
+      HideSettingsButtons:
+        "KEPLERLLM_HIDE_SETTINGS_BUTTONS" in process.env || false,
 
       // --------------------------------------------------------
       // Simple SSO Settings
