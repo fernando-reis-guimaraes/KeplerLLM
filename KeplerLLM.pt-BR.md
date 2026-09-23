@@ -384,9 +384,9 @@ Provisionar o default AnythingLLM workspace no first boot a partir de environmen
 - Se o workspace ja existir, o bootstrap nao sobrescreve valores alterados pela UI ou API. Restart ou redeploy do mesmo container e idempotente e nunca cria duplicatas.
 - DEFAULT_WORKSPACE_SLUG, quando explicitamente fornecido, identifica o workspace. Quando omitido, o existing AnythingLLM slug-generation behavior e usado.
 - DEFAULT_WORKSPACE_CHAT_MODE mapeia para o workspace chatMode. Valores aceitos: chat, query e automatic.
-- DEFAULT_WORKSPACE_TEMPERATURE mapeia para o workspace openAiTemp. Deve ser um number >= 0.
+- DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE mapeia para o workspace openAiTemp. Deve ser um number >= 0.
 - DEFAULT_WORKSPACE_HISTORY mapeia para o workspace openAiHistory. Deve ser um integer >= 0.
-- Valores numericos usam strict parsing. Por exemplo DEFAULT_WORKSPACE_TEMPERATURE=foo e DEFAULT_WORKSPACE_HISTORY=abc falham no startup com actionable configuration error em vez de coercao silenciosa.
+- Valores numericos usam strict parsing. Por exemplo DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE=foo e DEFAULT_WORKSPACE_HISTORY=abc falham no startup com actionable configuration error em vez de coercao silenciosa.
 - Todas as variaveis exceto o workspace name sao opcionais. Por exemplo DEFAULT_WORKSPACE_NAME mais DEFAULT_WORKSPACE_SLUG sem system prompt e valido, e DEFAULT_WORKSPACE_NAME mais system prompt sem slug usa a normal slug generation. Variaveis unset preservam os defaults do AnythingLLM. Uma variavel unset nunca vira empty database value.
 - Quando qualquer variavel DEFAULT_WORKSPACE esta definida mas DEFAULT_WORKSPACE_NAME falta, o startup falha com erro claro indicando a variavel requerida.
 
@@ -403,7 +403,7 @@ DEFAULT_WORKSPACE_NAME=Kepler
 DEFAULT_WORKSPACE_SLUG=kepler
 DEFAULT_WORKSPACE_SYSTEM_PROMPT="You are Kepler AI."
 DEFAULT_WORKSPACE_CHAT_MODE=chat
-DEFAULT_WORKSPACE_TEMPERATURE=1
+DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE=1
 DEFAULT_WORKSPACE_HISTORY=20
 ```
 
@@ -504,7 +504,7 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `DEFAULT_WORKSPACE_SYSTEM_PROMPT_BASE64` | unset       | System prompt como Base64 UTF-8 padrao. Precedencia intermediaria. |
 | `DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE` | unset         | System prompt como caminho de arquivo UTF-8. Precedencia mais alta. |
 | `DEFAULT_WORKSPACE_CHAT_MODE`  | unset                 | chatMode de bootstrap: chat, query ou automatic. Unset preserva o default. |
-| `DEFAULT_WORKSPACE_TEMPERATURE` | unset                | openAiTemp de bootstrap como number >= 0. Unset preserva o default. |
+| `DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE` | unset                | openAiTemp de bootstrap como number >= 0. Unset preserva o default. |
 | `DEFAULT_WORKSPACE_HISTORY`    | unset                 | openAiHistory de bootstrap como integer >= 0. Unset preserva o default. |
 | `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | Quando presente com qualquer valor, oculta os Settings entry buttons apenas na UI. URLs diretas continuam funcionando. |
 
@@ -575,7 +575,7 @@ DEFAULT_WORKSPACE_NAME=Kepler
 DEFAULT_WORKSPACE_SLUG=kepler
 DEFAULT_WORKSPACE_SYSTEM_PROMPT="You are Kepler AI."
 DEFAULT_WORKSPACE_CHAT_MODE=chat
-DEFAULT_WORKSPACE_TEMPERATURE=1
+DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE=1
 DEFAULT_WORKSPACE_HISTORY=20
 ```
 

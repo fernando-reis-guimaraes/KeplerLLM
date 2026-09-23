@@ -391,9 +391,9 @@ Provision the default AnythingLLM workspace on first boot from environment varia
 - If the workspace already exists, bootstrap does not overwrite values changed through the UI or API. Restarting or redeploying the same container is idempotent and never creates duplicates.
 - `DEFAULT_WORKSPACE_SLUG`, when explicitly provided, identifies the workspace. When omitted, the existing AnythingLLM slug-generation behavior is used.
 - `DEFAULT_WORKSPACE_CHAT_MODE` maps to workspace `chatMode`. Accepted values are `chat`, `query`, and `automatic`.
-- `DEFAULT_WORKSPACE_TEMPERATURE` maps to workspace `openAiTemp`. It must be a number `>= 0`.
+- `DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE` maps to workspace `openAiTemp`. It must be a number `>= 0`.
 - `DEFAULT_WORKSPACE_HISTORY` maps to workspace `openAiHistory`. It must be an integer `>= 0`.
-- Numeric values are parsed strictly. For example `DEFAULT_WORKSPACE_TEMPERATURE=foo` and `DEFAULT_WORKSPACE_HISTORY=abc` fail startup with an actionable configuration error instead of being silently coerced.
+- Numeric values are parsed strictly. For example `DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE=foo` and `DEFAULT_WORKSPACE_HISTORY=abc` fail startup with an actionable configuration error instead of being silently coerced.
 - All variables except the workspace name are optional. For example `DEFAULT_WORKSPACE_NAME` plus `DEFAULT_WORKSPACE_SLUG` without a system prompt is valid, and `DEFAULT_WORKSPACE_NAME` plus a system prompt without a slug uses normal slug generation. Unset variables leave the corresponding AnythingLLM defaults intact. An unset variable is never stored as an empty database value.
 - When any `DEFAULT_WORKSPACE_*` variable is set but `DEFAULT_WORKSPACE_NAME` is missing, startup fails with a clear error naming the required variable.
 
@@ -414,7 +414,7 @@ DEFAULT_WORKSPACE_NAME=Kepler
 DEFAULT_WORKSPACE_SLUG=kepler
 DEFAULT_WORKSPACE_SYSTEM_PROMPT="You are Kepler AI."
 DEFAULT_WORKSPACE_CHAT_MODE=chat
-DEFAULT_WORKSPACE_TEMPERATURE=1
+DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE=1
 DEFAULT_WORKSPACE_HISTORY=20
 ```
 
@@ -521,7 +521,7 @@ The fork tracks a stable AnythingLLM baseline. The current baseline is:
 | `DEFAULT_WORKSPACE_SYSTEM_PROMPT_BASE64` | unset       | Bootstrap system prompt as standard Base64 UTF-8. Middle prompt precedence.                    |
 | `DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE` | unset         | Bootstrap system prompt as a UTF-8 file path (e.g. `/run/secrets/kepler-system-prompt.txt`). Highest prompt precedence. |
 | `DEFAULT_WORKSPACE_CHAT_MODE`  | unset                 | Bootstrap `chatMode`: `chat`, `query`, or `automatic`. Unset leaves the upstream default.      |
-| `DEFAULT_WORKSPACE_TEMPERATURE` | unset                | Bootstrap `openAiTemp` as a number `>= 0`. Unset leaves the upstream default.                  |
+| `DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE` | unset                | Bootstrap `openAiTemp` as a number `>= 0`. Unset leaves the upstream default.                  |
 | `DEFAULT_WORKSPACE_HISTORY`    | unset                 | Bootstrap `openAiHistory` as an integer `>= 0`. Unset leaves the upstream default.             |
 | `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | When present with any value, hide Settings entry buttons in the UI only. Direct URLs still work. |
 
@@ -592,7 +592,7 @@ DEFAULT_WORKSPACE_NAME=Kepler
 DEFAULT_WORKSPACE_SLUG=kepler
 DEFAULT_WORKSPACE_SYSTEM_PROMPT="You are Kepler AI."
 DEFAULT_WORKSPACE_CHAT_MODE=chat
-DEFAULT_WORKSPACE_TEMPERATURE=1
+DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE=1
 DEFAULT_WORKSPACE_HISTORY=20
 ```
 
