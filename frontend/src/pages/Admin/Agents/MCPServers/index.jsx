@@ -174,6 +174,14 @@ function MCPServerItem({ server, isFirst, isLast, isSelected, handleClick }) {
           />
         )}
         {titleCase(server.name.replace(/[_-]/g, " "))}
+        {server.source === "environment" && (
+          <span
+            title="Managed by MCP_* environment variables"
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/10 text-theme-text-secondary"
+          >
+            Env
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-x-2">
         <div

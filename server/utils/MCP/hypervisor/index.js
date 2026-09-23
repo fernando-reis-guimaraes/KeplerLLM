@@ -12,6 +12,12 @@ const {
   StreamableHTTPClientTransport,
 } = require("@modelcontextprotocol/sdk/client/streamableHttp.js");
 const { patchShellEnvironmentPath } = require("../../helpers/shell");
+const {
+  parseMCPEnvironment,
+  mergeMCPDefinitions,
+  safeDomainForUrl,
+  sanitizeErrorMessage,
+} = require("../env");
 
 /**
  * @typedef {'stdio' | 'http'} MCPServerTypes
@@ -94,18 +100,62 @@ class MCPHypervisor {
   }
 
   /**
-   * Get the MCP servers from the JSON file.
-   * @returns { { name: string, server: { command: string, args: string[], env: { [key: string]: string } } }[] } The MCP servers.
+   * Read the raw file-based MCP server definitions.
+   * @returns { { [name: string]: Object } }
    */
-  get mcpServerConfigs() {
+  readFileMCPServers() {
     const servers = safeJsonParse(
       fs.readFileSync(this.mcpServerJSONPath, "utf8"),
       { mcpServers: {} }
     );
-    return Object.entries(servers.mcpServers).map(([name, server]) => ({
+    return servers.mcpServers || {};
+  }
+
+  /**
+   * Parse the current `MCP_*` environment definitions (fresh on every access
+   * so reloads pick up `process.env` changes).
+   * @returns {{ servers: { [name: string]: { envKey: string, config: Object } }, errors: { [name: string]: { envKey: string, message: string } } }}
+   */
+  get envMCPDefinitions() {
+    return parseMCPEnvironment(process.env);
+  }
+
+  /**
+   * Get the effective MCP servers (file + environment, environment wins).
+   * Environment definitions are never written to the JSON file.
+   * @returns { { name: string, server: Object, source: "environment" | "file" }[] } The MCP servers.
+   */
+  get mcpServerConfigs() {
+    const fileServers = this.readFileMCPServers();
+    const { servers: envServers } = this.envMCPDefinitions;
+    const { servers: merged, sources } = mergeMCPDefinitions(
+      fileServers,
+      envServers
+    );
+    return Object.entries(merged).map(([name, server]) => ({
       name,
       server,
+      source: sources[name] || "file",
     }));
+  }
+
+  /**
+   * Get the configuration source for a server name.
+   * @param {string} name
+   * @returns {"environment" | "file" | null}
+   */
+  getServerSource(name) {
+    const config = this.mcpServerConfigs.find((s) => s.name === name);
+    return config?.source || null;
+  }
+
+  /**
+   * Whether a server is managed by deployment environment configuration.
+   * @param {string} name
+   * @returns {boolean}
+   */
+  isEnvironmentManaged(name) {
+    return this.getServerSource(name) === "environment";
   }
 
   /**
@@ -144,11 +194,19 @@ class MCPHypervisor {
     );
 
     if (!servers.mcpServers[serverName]) {
-      return {
-        success: false,
-        error: `MCP server ${serverName} not found in config file.`,
-        suppressedTools: [],
-      };
+      // Environment-managed servers may persist ONLY safe AnythingLLM
+      // metadata (suppressedTools). Never persist URLs, headers, or secrets.
+      if (this.isEnvironmentManaged(serverName)) {
+        servers.mcpServers[serverName] = {
+          anythingllm: { suppressedTools: [] },
+        };
+      } else {
+        return {
+          success: false,
+          error: `MCP server ${serverName} not found in config file.`,
+          suppressedTools: [],
+        };
+      }
     }
 
     const server = servers.mcpServers[serverName];
@@ -211,7 +269,7 @@ class MCPHypervisor {
     if (!config)
       return {
         success: false,
-        error: `MCP server ${name} not found in config file`,
+        error: `MCP server ${name} not found in configuration`,
       };
 
     try {
@@ -223,16 +281,21 @@ class MCPHypervisor {
 
       return { success: true, message: `MCP server ${name} started` };
     } catch (e) {
-      this.log(`Failed to start single MCP server: ${name}`, {
-        error: e.message,
-        code: e.code,
-        syscall: e.syscall,
-        path: e.path,
-        stack: e.stack,
-      });
+      const safeMessage = sanitizeErrorMessage(e?.message || "Unknown error");
+      const domain = config?.server?.url
+        ? safeDomainForUrl(config.server.url)
+        : null;
+      this.log(
+        `Failed to start single MCP server: ${name}${domain ? ` (${domain})` : ""}`,
+        {
+          error: safeMessage,
+          code: e.code,
+        }
+      );
+      const safeResultMessage = `Failed to start MCP server: ${name} [${e.code || "NO_CODE"}] ${safeMessage}`;
       this.mcpLoadingResults[name] = {
         status: "failed",
-        message: `Failed to start MCP server: ${name} [${e.code || "NO_CODE"}] ${e.message}`,
+        message: safeResultMessage,
       };
 
       // Clean up failed connection
@@ -241,7 +304,7 @@ class MCPHypervisor {
         delete this.mcps[name];
       }
 
-      return { success: false, error: e.message };
+      return { success: false, error: safeResultMessage };
     }
   }
   /**
@@ -381,7 +444,8 @@ class MCPHypervisor {
       try {
         new URL(server.url);
       } catch {
-        throw new Error(`MCP server "${name}": invalid URL "${server.url}"`);
+        // Do not echo the URL: deployments intentionally put secrets in it.
+        throw new Error(`MCP server "${name}": invalid URL`);
       }
       return;
     }
@@ -456,10 +520,14 @@ class MCPHypervisor {
     const mcp = new Client({ name: name, version: "1.0.0" });
     const transport = await this.#setupServerTransport(server, serverType);
 
-    // Add connection event listeners
+    // Add connection event listeners (secret-safe: never log raw errors
+    // because transport messages can embed the secret URL).
     transport.onclose = () => this.log(`${name} - Transport closed`);
     transport.onerror = (error) =>
-      this.log(`${name} - Transport error:`, error);
+      this.log(
+        `${name} - Transport error:`,
+        sanitizeErrorMessage(error?.message || String(error))
+      );
     transport.onmessage = (message) =>
       this.log(`${name} - Transport message:`, message);
 
@@ -496,6 +564,17 @@ class MCPHypervisor {
       return this.mcpLoadingResults;
     }
 
+    // Invalid `MCP_*` definitions fail per-server without crashing the boot.
+    // Only names are logged: never values, tokens, or URLs.
+    const { errors: envErrors } = this.envMCPDefinitions;
+    for (const [name, { message }] of Object.entries(envErrors)) {
+      this.log(`Invalid environment MCP definition: ${name}: ${message}`);
+      this.mcpLoadingResults[name] = {
+        status: "failed",
+        message: `Invalid environment MCP definition: ${name}: ${message}`,
+      };
+    }
+
     const serverDefinitions = this.mcpServerConfigs;
     for (const { name, server } of serverDefinitions) {
       if (
@@ -521,16 +600,18 @@ class MCPHypervisor {
           message: `Successfully connected to MCP server: ${name}`,
         };
       } catch (e) {
-        this.log(`Failed to start MCP server: ${name}`, {
-          error: e.message,
-          code: e.code,
-          syscall: e.syscall,
-          path: e.path,
-          stack: e.stack, // Adding stack trace for better debugging
-        });
+        const safeMessage = sanitizeErrorMessage(e?.message || "Unknown error");
+        const domain = server?.url ? safeDomainForUrl(server.url) : null;
+        this.log(
+          `Failed to start MCP server: ${name}${domain ? ` (${domain})` : ""}`,
+          {
+            error: safeMessage,
+            code: e.code,
+          }
+        );
         this.mcpLoadingResults[name] = {
           status: "failed",
-          message: `Failed to start MCP server: ${name} [${e.code || "NO_CODE"}] ${e.message}`,
+          message: `Failed to start MCP server: ${name} [${e.code || "NO_CODE"}] ${safeMessage}`,
         };
 
         // Clean up failed connection

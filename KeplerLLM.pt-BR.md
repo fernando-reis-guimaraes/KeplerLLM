@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image e um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider e remote MCP server configuration através de environment variables.
 
 ## Fork changes
 
@@ -314,6 +314,67 @@ GENERIC_OPEN_AI_API_MODE=responses
 - Suporte a providers que não sejam OpenAI-compatible.
 - Persistir Responses continuation identifiers entre conversations; o chaining state limita-se ao active agent run.
 
+### Requirement 8 - Remote MCP servers através de environment variables
+
+#### Objective
+
+Definir remote Streamable HTTP MCP servers com uma environment variable por server, sem JSON dentro de envvars, reutilizando o existing MCP Hypervisor e o maquinário MCP/AIbitat.
+
+#### Observable behavior
+
+- Cada server é definido como:
+
+```text
+MCP_<NAME>=<URL>[|<AUTH_OR_HEADER>...]
+```
+
+- Exemplos (credentials fictícias):
+
+```env
+MCP_CLASSLOG_BANCO_DADOS=https://mcp-pg.example.com/XXX/mcp
+MCP_CLASSLOG_BANCO_DADOS=https://mcp-pg.example.com/XXX/mcp|Bearer|TOKEN
+MCP_CLASSLOG_CODIGO_FONTE=https://src.example.com/XXX/mcp|Basic|Usuario:Senha
+MCP_OUTRO=https://example.com/mcp|X-USER|XXX|X-PASS|YYY
+MCP_OUTRO=https://example.com/mcp|Bearer|TOKEN|X-USER|Fernando|X-APP|Classlog
+```
+
+- A parte após `MCP_` vira o server name: remove o prefixo, lowercase, troca `_` por `-`. Por exemplo `MCP_CLASSLOG_BANCO_DADOS` vira `classlog-banco-dados`.
+- Environment definitions são sempre remote Streamable HTTP servers. Não é preciso informar `type`.
+- Gramática suportada:
+
+```text
+<URL>
+<URL>|Bearer|<TOKEN>
+<URL>|Basic|<USERNAME>:<PASSWORD>
+<URL>|<HEADER>|<VALUE> [...]
+<URL>|Bearer|<TOKEN>|<HEADER>|<VALUE> [...]
+<URL>|Basic|<USERNAME>:<PASSWORD>|<HEADER>|<VALUE> [...]
+```
+
+- `Bearer` e `Basic` são case-insensitive na posição de auth. `Bearer` gera `Authorization: Bearer <TOKEN>` com a grafia canônica. `Basic` recebe exatamente um valor `Username:Password`, com split apenas no primeiro `:`, de modo que o password pode conter dois-pontos adicionais, e gera `Authorization: Basic <base64>`.
+- Qualquer outra coisa é um par comum `<HEADER>|<VALUE>` até o fim do valor. Header names e values são preservados verbatim. Só `Bearer` e `Basic` são especiais.
+- `|` é o delimitador reservado. Não há escaping, quoting ou sintaxe `\|`. Valores com `|` literal não são suportados.
+- A discovery é conservadora: uma variável `MCP_*` só vira server quando o valor começa com uma URL válida `http://` ou `https://`. Flags como `MCP_NO_COOLDOWN` nunca viram servers.
+- A configuração efetiva é `anythingllm_mcp_servers.json` com merge das definições `MCP_*` a cada load/reload. O environment vence por server name. Environment definitions nunca são escritas no JSON file. Remover uma envvar restaura a definição do arquivo no próximo reload/restart.
+- Uma definição `MCP_*` inválida falha apenas aquele server, com mensagem útil per-server. Nunca derruba o boot nem oculta os demais servers.
+
+#### Rules and limits
+
+- Configuração apenas por environment variable. Não há JSON env configuration nem sprawl além de uma variável por server.
+- Environment-managed servers aparecem na lista MCP com `source: "environment"`, status running/error/tools normal e comportamento start/stop/reload normal. O Delete permanente é rejeitado para eles; altere as envvars do deployment.
+- Toggles de tool-suppression para environment-managed servers persistem apenas metadata segura `anythingllm` (`suppressedTools`, `autoStart`). URLs, tokens, passwords e header values nunca vão para o JSON file por causa disso.
+- O frontend/API nunca recebe URLs completas, paths, query strings, fragments, credentials embutidas na URL, tokens, passwords, valores `Authorization`, header values arbitrários ou valores originais `MCP_*`. Só hostname/domain (via URL parsing), transport type, source, header names, metadata segura `anythingllm`, status, tools e erros sanitizados são expostos. Essa redação vale também para servers file-managed.
+- Logs e mensagens de erro identificam servers só pelo nome normalizado e hostname seguro. Erros de transporte são sanitizados antes de logar ou retornar à UI.
+- A implementation relevante vive em `server/utils/MCP/env.js` (helpers puros de parser/merge/sanitizer), `server/utils/MCP/hypervisor/index.js` (config efetiva, boot/logging secret-safe), `server/utils/MCP/index.js` (`servers()` sanitizado, guarda de delete environment-managed) e `frontend/src/pages/Admin/Agents/MCPServers/` (indicador de environment, exibição de config redigida).
+- Nenhum novo MCP transport, Hypervisor, config file ou agent framework foi introduzido.
+
+#### Out of scope
+
+- Pipe escaping ou quoting rules.
+- JSON dentro de environment variables.
+- Transports não HTTP via envvars (stdio/SSE continuam file-configured).
+- Migração automática de dados de qualquer tipo.
+
 ## Appendix - Operational reference
 
 Este apêndice registra apenas os fatos de runtime e publishing necessários para operar o fork. Não descreve implementation.
@@ -334,6 +395,7 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `KEPLERLLM_MODEL_DISPLAY_NAME` | `Kepler AI`           | Product label exibido no workspace model picker.                                        |
 | `DATABASE_URL`                 | unset                 | Quando ausente, usa SQLite. Quando contém `postgresql://...`, usa PostgreSQL.           |
 | `GENERIC_OPEN_AI_API_MODE`     | `chat-completions`    | Protocolo do Generic OpenAI: `chat-completions` (default) ou `responses` (Responses API). |
+| `MCP_<NAME>`                   | unset                 | Um remote Streamable HTTP MCP server por variável, ex. `MCP_DOCS=https://host/XXX/mcp`. O env vence o MCP JSON file. |
 
 O deployment monta apenas:
 
@@ -384,6 +446,16 @@ Opcionalmente personalize o model label:
 ```text
 KEPLERLLM_MODEL_DISPLAY_NAME=Kepler AI
 ```
+
+Opcionalmente defina remote MCP servers (uma variável por server, Streamable HTTP, valores fictícios):
+
+```text
+MCP_DOCS=https://mcp.example.com/XXX/mcp
+MCP_DOCS=https://mcp.example.com/XXX/mcp|Bearer|TOKEN
+MCP_CODE=https://src.example.com/XXX/mcp|Basic|Usuario:Senha
+```
+
+Os nomes normalizam `MCP_<NAME>` para lowercase com `_` como `-`. Environment definitions sobrescrevem entradas de mesmo nome em `anythingllm_mcp_servers.json` sem escrever nesse arquivo. Só o hostname aparece na UI; paths, queries e header values são redigidos.
 
 Mantenha o named volume:
 

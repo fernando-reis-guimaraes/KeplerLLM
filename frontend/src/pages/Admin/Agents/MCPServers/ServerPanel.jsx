@@ -12,6 +12,7 @@ function ManageServerMenu({ server, toggleServer, onDelete }) {
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(server.running);
   const menuRef = useRef(null);
+  const isEnvironmentManaged = server.source === "environment";
 
   async function deleteServer() {
     if (
@@ -91,13 +92,15 @@ function ManageServerMenu({ server, toggleServer, onDelete }) {
                 : t("agent.mcp.start-server")}
             </span>
           </button>
-          <button
-            type="button"
-            onClick={deleteServer}
-            className="border-none flex items-center rounded-lg gap-x-2 hover:bg-theme-action-menu-item-hover py-1.5 px-2 transition-colors duration-200 w-full text-left"
-          >
-            <span className="text-sm">{t("agent.mcp.delete-server")}</span>
-          </button>
+          {!isEnvironmentManaged && (
+            <button
+              type="button"
+              onClick={deleteServer}
+              className="border-none flex items-center rounded-lg gap-x-2 hover:bg-theme-action-menu-item-hover py-1.5 px-2 transition-colors duration-200 w-full text-left"
+            >
+              <span className="text-sm">{t("agent.mcp.delete-server")}</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -130,6 +133,14 @@ export default function ServerPanel({
               <label htmlFor="name" className="text-white text-md font-bold">
                 {titleCase(server.name.replace(/[_-]/g, " "))}
               </label>
+              {server.source === "environment" && (
+                <span
+                  title="Managed by MCP_* environment variables. Change deployment configuration instead of editing here."
+                  className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-theme-bg-primary text-theme-text-secondary border border-white/10"
+                >
+                  Environment managed
+                </span>
+              )}
               {server.tools.length > 0 && (
                 <p className="text-theme-text-secondary text-sm">
                   {enabledToolCount}/{server.tools.length}{" "}
@@ -179,6 +190,49 @@ function ToolCountWarningBanner({ server, enabledToolCount }) {
 function RenderServerConfig({ config = null }) {
   const { t } = useTranslation();
   if (!config) return null;
+
+  // Safe backend representation exposes only hostname/domain, transport type,
+  // source, and header names. Full URLs, paths, queries, and header values
+  // are never sent to the frontend.
+  const isStdio =
+    config.command !== undefined || config.type === "stdio" || !config.domain;
+  if (!isStdio) {
+    return (
+      <div className="flex flex-col gap-y-2">
+        <p className="text-theme-text-primary text-sm">
+          {t("agent.mcp.startup-command")}
+        </p>
+        <div className="bg-theme-bg-primary rounded-lg p-4 flex flex-col gap-y-1">
+          {config.domain && (
+            <p className="text-theme-text-secondary text-sm text-left">
+              <span className="font-bold">Domain:</span> {config.domain}
+            </p>
+          )}
+          {config.type && (
+            <p className="text-theme-text-secondary text-sm text-left">
+              <span className="font-bold">Transport:</span> {config.type}
+            </p>
+          )}
+          {config.source && (
+            <p className="text-theme-text-secondary text-sm text-left">
+              <span className="font-bold">Source:</span>{" "}
+              {config.source === "environment"
+                ? "Environment managed"
+                : config.source}
+            </p>
+          )}
+          {Array.isArray(config.headerNames) &&
+            config.headerNames.length > 0 && (
+              <p className="text-theme-text-secondary text-sm text-left">
+                <span className="font-bold">Headers:</span>{" "}
+                {config.headerNames.join(", ")}
+              </p>
+            )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-y-2">
       <p className="text-theme-text-primary text-sm">

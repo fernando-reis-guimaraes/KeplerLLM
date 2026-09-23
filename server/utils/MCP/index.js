@@ -1,4 +1,5 @@
 const MCPHypervisor = require("./hypervisor");
+const { sanitizeErrorMessage, sanitizeServerForFrontend } = require("./env");
 
 class MCPCompatibilityLayer extends MCPHypervisor {
   static _instance;
@@ -139,17 +140,26 @@ class MCPCompatibilityLayer extends MCPHypervisor {
    */
   async servers() {
     await this.bootMCPServers();
+    const { errors: envErrors } = this.envMCPDefinitions;
     const servers = [];
     for (const [name, result] of Object.entries(this.mcpLoadingResults)) {
       const config = this.mcpServerConfigs.find((s) => s.name === name);
+      // Invalid env definitions have no effective config: still report them
+      // as environment-managed failures without any secrets.
+      const source =
+        config?.source || (envErrors[name] ? "environment" : "file");
+      const safe = sanitizeServerForFrontend(
+        name,
+        config?.server || {},
+        source
+      );
 
       if (result.status === "failed") {
         servers.push({
-          name,
-          config: config?.server || null,
+          ...safe,
           running: false,
           tools: [],
-          error: result.message,
+          error: sanitizeErrorMessage(result.message),
           process: null,
         });
         continue;
@@ -172,8 +182,7 @@ class MCPCompatibilityLayer extends MCPHypervisor {
           (tool) => !tool.name.startsWith("handle_mcp_connection_mcp_")
         );
         servers.push({
-          name,
-          config: config?.server || null,
+          ...safe,
           running: online,
           tools,
           error: null,
@@ -182,13 +191,17 @@ class MCPCompatibilityLayer extends MCPHypervisor {
           },
         });
       } catch (error) {
-        this.log(`Failed to list tools for MCP server ${name}:`, error);
+        this.log(
+          `Failed to list tools for MCP server ${name}:`,
+          sanitizeErrorMessage(error?.message || String(error))
+        );
         servers.push({
-          name,
-          config: config?.server || null,
+          ...safe,
           running: false,
           tools: [],
-          error: error?.message || "Failed to load tools for this MCP server.",
+          error: sanitizeErrorMessage(
+            error?.message || "Failed to load tools for this MCP server."
+          ),
           process: null,
         });
       }
@@ -206,7 +219,7 @@ class MCPCompatibilityLayer extends MCPHypervisor {
     if (!server)
       return {
         success: false,
-        error: `MCP server ${name} not found in config file.`,
+        error: `MCP server ${name} not found in configuration.`,
       };
     const mcp = this.mcps[name];
     const online = !!mcp ? !!(await mcp.ping()) : false; // If the server is not in the mcps object, it is not running
@@ -233,8 +246,17 @@ class MCPCompatibilityLayer extends MCPHypervisor {
     if (!server)
       return {
         success: false,
-        error: `MCP server ${name} not found in config file.`,
+        error: `MCP server ${name} not found in configuration.`,
       };
+
+    // Environment-managed servers are deployment configuration: they cannot
+    // be permanently deleted from the UI. Remove the envvar instead.
+    if (server.source === "environment") {
+      return {
+        success: false,
+        error: `MCP server ${name} is managed by environment configuration and cannot be deleted. Remove the corresponding MCP_* environment variable instead.`,
+      };
+    }
 
     const mcp = this.mcps[name];
     const online = !!mcp ? !!(await mcp.ping()) : false; // If the server is not in the mcps object, it is not running
