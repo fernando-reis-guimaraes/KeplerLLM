@@ -7,6 +7,22 @@ const eagerLoadContextWindows = require("./eagerLoadContextWindows");
 const markOnboarded = require("./markOnboarded");
 const { PushNotifications } = require("../PushNotifications");
 const { TelegramBotService } = require("../telegramBot");
+const { bootstrapDefaultWorkspace } = require("./defaultWorkspace");
+
+// KeplerLLM fork: bootstrap the default workspace from DEFAULT_WORKSPACE_*
+// environment variables. Bootstrap-only and idempotent: an existing workspace
+// is never overwritten. Invalid bootstrap configuration fails fast so a
+// misconfigured deployment does not start with a silently wrong workspace.
+async function bootDefaultWorkspace() {
+  try {
+    await bootstrapDefaultWorkspace();
+  } catch (e) {
+    console.error(
+      `\x1b[31m[DEFAULT WORKSPACE BOOTSTRAP FAILED]\x1b[0m ${e.message}`
+    );
+    process.exit(1);
+  }
+}
 
 // Testing SSL? You can make a self signed certificate and point the ENVs to that location
 // make a directory in server called 'sslcert' - cd into it
@@ -35,6 +51,7 @@ function bootSSL(app, port = 3001) {
         await setupTelemetry();
         new CommunicationKey(true);
         new EncryptionManager();
+        await bootDefaultWorkspace();
         new BackgroundService().boot();
         await eagerLoadContextWindows();
         await PushNotifications.setupPushNotificationService();
@@ -68,6 +85,7 @@ function bootHTTP(app, port = 3001) {
       await setupTelemetry();
       new CommunicationKey(true);
       new EncryptionManager();
+      await bootDefaultWorkspace();
       new BackgroundService().boot();
       await eagerLoadContextWindows();
       await PushNotifications.setupPushNotificationService();
