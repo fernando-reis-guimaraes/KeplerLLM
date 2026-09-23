@@ -362,6 +362,68 @@ describe("parseMCPEnvironment", () => {
     // Error metadata must not contain the secret value.
     expect(JSON.stringify(errors)).not.toMatch(/SUPER-SECRET/);
   });
+
+  it("marks qualifying names as managed even when parsing fails", () => {
+    const { managedNames, errors } = parseMCPEnvironment({
+      MCP_GOOD: "https://example.com/mcp",
+      MCP_BAD: "https://example.com/mcp|Bearer",
+      MCP_NO_COOLDOWN: "true",
+      MCP_FLAG: "1",
+    });
+    expect(managedNames.has("good")).toBe(true);
+    expect(managedNames.has("bad")).toBe(true);
+    expect(errors["bad"]).toBeDefined();
+    // Non-URL flags never become managed names.
+    expect(managedNames.has("no-cooldown")).toBe(false);
+    expect(managedNames.has("flag")).toBe(false);
+  });
+});
+
+describe("parseMCPEnvValue - verbatim arbitrary headers", () => {
+  it("preserves surrounding whitespace inside header values", () => {
+    const parsed = parseMCPEnvValue(
+      "https://example.com/mcp|X-Custom|  some value  "
+    );
+    expect(parsed.ok).toBe(true);
+    expect(parsed.config.headers["X-Custom"]).toBe("  some value  ");
+  });
+
+  it("preserves exact header-name casing", () => {
+    const parsed = parseMCPEnvValue(
+      "https://example.com/mcp|x-Custom-Header|ABC"
+    );
+    expect(parsed.ok).toBe(true);
+    expect(Object.keys(parsed.config.headers)).toEqual(["x-Custom-Header"]);
+  });
+
+  it("still rejects truly empty names and values", () => {
+    expect(parseMCPEnvValue("https://example.com/mcp|X-USER|").ok).toBe(false);
+    expect(parseMCPEnvValue("https://example.com/mcp||value").ok).toBe(false);
+    expect(parseMCPEnvValue("https://example.com/mcp|   |value").ok).toBe(
+      false
+    );
+  });
+
+  it("still trims structural segments (URL, auth keywords, tokens)", () => {
+    const parsed = parseMCPEnvValue(
+      "  https://example.com/mcp  |  bEaReR  |  TOKEN  "
+    );
+    expect(parsed.ok).toBe(true);
+    expect(parsed.config.url).toBe("https://example.com/mcp");
+    expect(parsed.config.headers.Authorization).toBe("Bearer TOKEN");
+  });
+
+  it("keeps auth + verbatim additional headers working", () => {
+    const parsed = parseMCPEnvValue(
+      "https://example.com/mcp|Bearer|TOKEN|X-USER|Fernando|X-NOTE|  padded  "
+    );
+    expect(parsed.ok).toBe(true);
+    expect(parsed.config.headers).toEqual({
+      Authorization: "Bearer TOKEN",
+      "X-USER": "Fernando",
+      "X-NOTE": "  padded  ",
+    });
+  });
 });
 
 describe("mergeMCPDefinitions", () => {
@@ -763,5 +825,162 @@ describe("MCPHypervisor environment integration", () => {
     const fileEntry = servers.find((s) => s.name === "file-secret");
     expect(fileEntry.source).toBe("file");
     expect(fileEntry.domain).toBe("mcp-pg.example.com");
+  });
+});
+
+describe("mergeMCPDefinitions - invalid env still shadows file", () => {
+  it("marks a malformed env name as environment without the file URL", () => {
+    const { servers, sources } = mergeMCPDefinitions(
+      {
+        classlog: {
+          type: "streamable",
+          url: "https://old.example.com/mcp",
+        },
+      },
+      {},
+      new Set(["classlog"])
+    );
+    expect(sources["classlog"]).toBe("environment");
+    expect(servers["classlog"].url).toBeUndefined();
+    expect(JSON.stringify(servers)).not.toMatch(/old\.example\.com/);
+  });
+});
+
+describe("MCPHypervisor invalid-env precedence lifecycle", () => {
+  let storageDir;
+  let hypervisor;
+
+  beforeEach(() => {
+    storageDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-env-fix1-"));
+    process.env.STORAGE_DIR = storageDir;
+    MCPHypervisor._instance = undefined;
+    MCPCompatibilityLayer._instance = undefined;
+  });
+
+  afterEach(() => {
+    if (hypervisor) {
+      try {
+        hypervisor.pruneMCPServers();
+      } catch {}
+    }
+    MCPHypervisor._instance = undefined;
+    MCPCompatibilityLayer._instance = undefined;
+    hypervisor = undefined;
+    delete process.env.STORAGE_DIR;
+    fs.rmSync(storageDir, { recursive: true, force: true });
+  });
+
+  function writeFileConfig(servers) {
+    fs.mkdirSync(path.join(storageDir, "plugins"), { recursive: true });
+    fs.writeFileSync(
+      path.join(storageDir, "plugins", "anythingllm_mcp_servers.json"),
+      JSON.stringify({ mcpServers: servers }, null, 2)
+    );
+  }
+
+  function readFileConfig() {
+    return JSON.parse(
+      fs.readFileSync(
+        path.join(storageDir, "plugins", "anythingllm_mcp_servers.json"),
+        "utf8"
+      )
+    );
+  }
+
+  function setupShadowedFile() {
+    writeFileConfig({
+      classlog: {
+        type: "streamable",
+        url: "https://old.example.com/mcp",
+      },
+    });
+    process.env.MCP_CLASSLOG = "https://new.example.com/mcp|Bearer";
+  }
+
+  it("A. invalid env shadows the same-name file definition", () => {
+    setupShadowedFile();
+    hypervisor = new MCPHypervisor();
+    const found = hypervisor.mcpServerConfigs.find(
+      (c) => c.name === "classlog"
+    );
+    expect(found).toBeDefined();
+    expect(found.source).toBe("environment");
+    expect(found.server.url).not.toBe("https://old.example.com/mcp");
+  });
+
+  it("B. boot keeps the env error and never starts the file server", async () => {
+    setupShadowedFile();
+    hypervisor = new MCPHypervisor();
+    const results = await hypervisor.bootMCPServers();
+    expect(results["classlog"].status).toBe("failed");
+    expect(results["classlog"].message).toMatch(/Invalid environment/);
+    // The shadowed file URL must not leak into results or be attempted.
+    expect(JSON.stringify(results)).not.toMatch(/old\.example\.com/);
+    expect(hypervisor.mcps["classlog"]).toBeUndefined();
+  });
+
+  it("B2. servers() reports the malformed entry as environment-managed", async () => {
+    setupShadowedFile();
+    const layer = new MCPCompatibilityLayer();
+    hypervisor = layer;
+    const servers = await layer.servers();
+    const entry = servers.find((s) => s.name === "classlog");
+    expect(entry).toBeDefined();
+    expect(entry.source).toBe("environment");
+    expect(entry.running).toBe(false);
+    expect(entry.error).toMatch(/Invalid environment/);
+    const blob = JSON.stringify(servers);
+    expect(blob).not.toMatch(/old\.example\.com/);
+    expect(blob).not.toMatch(/new\.example\.com/);
+  });
+
+  it("C. Delete stays rejected and the file entry survives", async () => {
+    setupShadowedFile();
+    const layer = new MCPCompatibilityLayer();
+    hypervisor = layer;
+    const result = await layer.deleteServer("classlog");
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/environment/i);
+    expect(readFileConfig().mcpServers["classlog"].url).toBe(
+      "https://old.example.com/mcp"
+    );
+  });
+
+  it("D. removing the malformed env restores the file definition", async () => {
+    setupShadowedFile();
+    hypervisor = new MCPHypervisor();
+    expect(
+      hypervisor.mcpServerConfigs.find((c) => c.name === "classlog").source
+    ).toBe("environment");
+
+    delete process.env.MCP_CLASSLOG;
+    const after = hypervisor.mcpServerConfigs.find(
+      (c) => c.name === "classlog"
+    );
+    expect(after.source).toBe("file");
+    expect(after.server.url).toBe("https://old.example.com/mcp");
+  });
+
+  it("E. an unrelated server still boots alongside the malformed one", async () => {
+    writeFileConfig({
+      classlog: {
+        type: "streamable",
+        url: "https://old.example.com/mcp",
+      },
+      other: {
+        type: "streamable",
+        url: "https://other.example.com/mcp",
+      },
+    });
+    process.env.MCP_CLASSLOG = "https://new.example.com/mcp|Bearer";
+    hypervisor = new MCPHypervisor();
+    const results = await hypervisor.bootMCPServers();
+    // Malformed entry keeps its env failure...
+    expect(results["classlog"].status).toBe("failed");
+    expect(results["classlog"].message).toMatch(/Invalid environment/);
+    // ...while the unrelated server still went through boot (and failed only
+    // on connection, proving it was not blocked by the bad envvar).
+    expect(results["other"].status).toBe("failed");
+    expect(results["other"].message).not.toMatch(/Invalid environment/);
   });
 });

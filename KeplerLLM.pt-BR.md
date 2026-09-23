@@ -352,10 +352,10 @@ MCP_OUTRO=https://example.com/mcp|Bearer|TOKEN|X-USER|Fernando|X-APP|Classlog
 ```
 
 - `Bearer` e `Basic` são case-insensitive na posição de auth. `Bearer` gera `Authorization: Bearer <TOKEN>` com a grafia canônica. `Basic` recebe exatamente um valor `Username:Password`, com split apenas no primeiro `:`, de modo que o password pode conter dois-pontos adicionais, e gera `Authorization: Basic <base64>`.
-- Qualquer outra coisa é um par comum `<HEADER>|<VALUE>` até o fim do valor. Header names e values são preservados verbatim. Só `Bearer` e `Basic` são especiais.
+- Qualquer outra coisa é um par comum `<HEADER>|<VALUE>` até o fim do valor. Header names e values são preservados verbatim (casing e espaçamento exatos; sem trimming). Só `Bearer` e `Basic` são especiais.
 - `|` é o delimitador reservado. Não há escaping, quoting ou sintaxe `\|`. Valores com `|` literal não são suportados.
 - A discovery é conservadora: uma variável `MCP_*` só vira server quando o valor começa com uma URL válida `http://` ou `https://`. Flags como `MCP_NO_COOLDOWN` nunca viram servers.
-- A configuração efetiva é `anythingllm_mcp_servers.json` com merge das definições `MCP_*` a cada load/reload. O environment vence por server name. Environment definitions nunca são escritas no JSON file. Remover uma envvar restaura a definição do arquivo no próximo reload/restart.
+- A configuração efetiva é `anythingllm_mcp_servers.json` com merge das definições `MCP_*` a cada load/reload. O environment vence por server name. Um nome definido pelo environment sombreia o mesmo nome em `anythingllm_mcp_servers.json` mesmo quando a definição do environment é inválida, de modo que uma envvar malformada relata um erro de configuração do environment em vez de voltar silenciosamente à configuração stale do arquivo. Environment definitions nunca são escritas no JSON file. Remover uma envvar restaura a definição do arquivo no próximo reload/restart.
 - Uma definição `MCP_*` inválida falha apenas aquele server, com mensagem útil per-server. Nunca derruba o boot nem oculta os demais servers.
 
 #### Rules and limits

@@ -352,10 +352,10 @@ MCP_OUTRO=https://example.com/mcp|Bearer|TOKEN|X-USER|Fernando|X-APP|Classlog
 ```
 
 - `Bearer` and `Basic` are matched case-insensitively in the auth position. `Bearer` produces `Authorization: Bearer <TOKEN>` with canonical spelling. `Basic` takes exactly one `Username:Password` value, split on the first `:` only, so the password may contain additional colons, and produces `Authorization: Basic <base64>`.
-- Anything else is an ordinary `<HEADER>|<VALUE>` pair run until the end of the value. Header names and values are preserved verbatim. Only `Bearer` and `Basic` are special.
+- Anything else is an ordinary `<HEADER>|<VALUE>` pair run until the end of the value. Header names and values are preserved verbatim (exact casing and spacing; no trimming). Only `Bearer` and `Basic` are special.
 - `|` is the reserved delimiter. There is no escaping, quoting, or `\|` syntax. Values containing a literal `|` are unsupported.
 - Discovery is conservative: a `MCP_*` variable is treated as a server only when its value begins with a valid `http://` or `https://` URL. Unrelated flags such as `MCP_NO_COOLDOWN` are never treated as servers.
-- Effective configuration is `anythingllm_mcp_servers.json` merged with `MCP_*` definitions at load/reload time. Environment wins by server name. Environment definitions are never written into the JSON file. Removing an envvar restores the underlying file definition on the next reload/restart.
+- Effective configuration is `anythingllm_mcp_servers.json` merged with `MCP_*` definitions at load/reload time. Environment wins by server name. An environment-defined MCP name shadows the same name in `anythingllm_mcp_servers.json` even when the environment definition is invalid, so a malformed envvar reports an environment configuration error instead of silently falling back to stale file configuration. Environment definitions are never written into the JSON file. Removing an envvar restores the underlying file definition on the next reload/restart.
 - An invalid `MCP_*` definition fails only that server with a useful per-server message. It never crashes boot or hides the remaining servers.
 
 #### Rules and limits

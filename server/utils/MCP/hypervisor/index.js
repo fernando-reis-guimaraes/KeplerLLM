@@ -127,10 +127,11 @@ class MCPHypervisor {
    */
   get mcpServerConfigs() {
     const fileServers = this.readFileMCPServers();
-    const { servers: envServers } = this.envMCPDefinitions;
+    const { servers: envServers, managedNames } = this.envMCPDefinitions;
     const { servers: merged, sources } = mergeMCPDefinitions(
       fileServers,
-      envServers
+      envServers,
+      managedNames
     );
     return Object.entries(merged).map(([name, server]) => ({
       name,
@@ -265,6 +266,14 @@ class MCPHypervisor {
   async startMCPServer(name) {
     if (this.mcps[name])
       return { success: false, error: `MCP server ${name} already running` };
+    // A malformed envvar owns its name: never fall back to starting the
+    // shadowed file definition.
+    const { errors: envErrors } = this.envMCPDefinitions;
+    if (envErrors[name]) {
+      const message = `Invalid environment MCP definition: ${name}: ${envErrors[name].message}`;
+      this.mcpLoadingResults[name] = { status: "failed", message };
+      return { success: false, error: message };
+    }
     const config = this.mcpServerConfigs.find((s) => s.name === name);
     if (!config)
       return {
@@ -576,7 +585,12 @@ class MCPHypervisor {
     }
 
     const serverDefinitions = this.mcpServerConfigs;
+    const invalidEnvNames = new Set(Object.keys(envErrors));
     for (const { name, server } of serverDefinitions) {
+      // Malformed env definitions already recorded a failure above and own
+      // their name: skip so a shadowed file server can never start here and
+      // overwrite the environment error with a success result.
+      if (invalidEnvNames.has(name)) continue;
       if (
         server.anythingllm?.hasOwnProperty("autoStart") &&
         server.anythingllm.autoStart === false

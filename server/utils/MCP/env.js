@@ -18,9 +18,16 @@
  * - `Bearer` / `Basic` are matched case-insensitively in the auth position.
  * - `Basic` uses exactly ONE value `Username:Password`, split on FIRST `:`.
  * - `|` is reserved. No escaping, quoting, or `\|` is supported.
+ * - Ordinary header names/values are passed verbatim (no trimming,
+ *   no case folding). Structural segments (URL, auth keywords, Basic
+ *   credentials) are trimmed for parsing.
  * - Discovery is conservative: a `MCP_*` variable is only treated as a server
  *   when its value begins with a valid `http://` or `https://` URL. This keeps
  *   unrelated flags such as `MCP_NO_COOLDOWN` out of server discovery.
+ * - Once a variable qualifies as an MCP definition, its normalized name is
+ *   environment-managed even when parsing fails, so a malformed envvar still
+ *   shadows the same name in `anythingllm_mcp_servers.json` instead of
+ *   silently falling back to stale file configuration.
  */
 
 const MCP_ENV_PREFIX = "MCP_";
@@ -91,9 +98,11 @@ function parseMCPEnvValue(rawValue) {
   }
 
   // `|` is the reserved delimiter. No escaping is supported by design.
-  const segments = rawValue.split("|").map((part) => part.trim());
+  // Only structural segments are trimmed; ordinary header names/values are
+  // kept verbatim below.
+  const segments = rawValue.split("|");
 
-  const url = segments[0];
+  const url = segments[0].trim();
   if (!isValidRemoteHttpUrl(url)) {
     return {
       ok: false,
@@ -110,13 +119,13 @@ function parseMCPEnvValue(rawValue) {
   const headers = {};
   let cursor = 0;
 
-  const firstDirective = rest[0].toLowerCase();
+  const firstDirective = rest[0].trim().toLowerCase();
   if (firstDirective === "bearer" || firstDirective === "basic") {
-    const credential = rest[1];
-    if (credential === undefined || credential === "") {
+    const credential = (rest[1] ?? "").trim();
+    if (credential === "") {
       return {
         ok: false,
-        error: `Invalid MCP definition: "${rest[0]}" requires a credential value.`,
+        error: `Invalid MCP definition: "${rest[0].trim()}" requires a credential value.`,
       };
     }
 
@@ -160,17 +169,18 @@ function parseMCPEnvValue(rawValue) {
   }
 
   for (let i = 0; i < remaining.length; i += 2) {
+    // Ordinary headers are verbatim: exact casing and spacing preserved.
+    // Only truly empty names/values are rejected; intentionally supplied
+    // whitespace inside a non-empty value is kept as-is.
     const headerName = remaining[i];
     const headerValue = remaining[i + 1];
-    if (!headerName || !headerValue) {
+    if (headerName === "" || headerName.trim() === "" || headerValue === "") {
       return {
         ok: false,
         error:
           "Invalid MCP definition: headers must be complete <HEADER>|<VALUE> pairs with non-empty names and values.",
       };
     }
-    // Preserve header names and values verbatim (besides surrounding
-    // whitespace trimming). Only Bearer/Basic are special.
     headers[headerName] = headerValue;
   }
 
@@ -181,12 +191,16 @@ function parseMCPEnvValue(rawValue) {
 
 /**
  * Scan an env object for MCP server definitions.
+ * Every qualifying candidate owns its normalized name (see `managedNames`),
+ * even when its value fails to parse, so a malformed envvar still shadows
+ * the same name in the JSON file instead of falling back to it.
  * @param {NodeJS.ProcessEnv} [env=process.env]
- * @returns {{ servers: { [name: string]: { envKey: string, config: Object } }, errors: { [name: string]: { envKey: string, message: string } } }}
+ * @returns {{ servers: { [name: string]: { envKey: string, config: Object } }, errors: { [name: string]: { envKey: string, message: string } }, managedNames: Set<string> }}
  */
 function parseMCPEnvironment(env = process.env) {
   const servers = {};
   const errors = {};
+  const managedNames = new Set();
 
   const keys = Object.keys(env || {})
     .filter((key) => key.startsWith(MCP_ENV_PREFIX))
@@ -200,30 +214,41 @@ function parseMCPEnvironment(env = process.env) {
     const name = normalizeEnvServerName(envKey);
     if (!name) continue;
 
+    managedNames.add(name);
     const parsed = parseMCPEnvValue(rawValue);
     if (parsed.ok) {
-      // Deterministic: sorted keys, last duplicate wins.
+      // Deterministic: sorted keys, last duplicate wins across both maps.
+      delete errors[name];
       servers[name] = { envKey, config: parsed.config };
     } else {
+      delete servers[name];
       errors[name] = { envKey, message: parsed.error };
     }
   }
 
-  return { servers, errors };
+  return { servers, errors, managedNames };
 }
 
 /**
  * Merge file-based definitions with environment definitions.
- * Environment wins by server name. For overridden servers the safe
- * `anythingllm` metadata (suppressedTools, autoStart) from the file is
- * preserved so UI toggles keep working without persisting secrets.
+ * Environment wins by server name. A qualifying envvar owns its name even
+ * when invalid: the file definition is then shadowed (never started) and
+ * the name reports as environment-managed failure. For overridden servers
+ * the safe `anythingllm` metadata (suppressedTools, autoStart) from the file
+ * is preserved so UI toggles keep working without persisting secrets.
  * @param {{ [name: string]: Object }} fileServers
  * @param {{ [name: string]: { envKey: string, config: Object } | Object }} envServers
+ * @param {Set<string> | string[]} [managedNames=[]] - normalized names owned by the environment (valid or not)
  * @returns {{ servers: { [name: string]: Object }, sources: { [name: string]: "environment" | "file" } }}
  */
-function mergeMCPDefinitions(fileServers = {}, envServers = {}) {
+function mergeMCPDefinitions(
+  fileServers = {},
+  envServers = {},
+  managedNames = []
+) {
   const servers = {};
   const sources = {};
+  const managed = new Set(managedNames || []);
 
   const normalizedEnv = {};
   for (const [name, entry] of Object.entries(envServers || {})) {
@@ -234,7 +259,18 @@ function mergeMCPDefinitions(fileServers = {}, envServers = {}) {
   }
 
   for (const [name, fileConfig] of Object.entries(fileServers || {})) {
-    if (normalizedEnv[name]) {
+    if (managed.has(name) && !normalizedEnv[name]) {
+      // Malformed envvar owns this name: shadow the file definition so the
+      // stale deployment config can never start. Keep safe `anythingllm`
+      // metadata visible; there is no bootable server config.
+      servers[name] =
+        fileConfig &&
+        typeof fileConfig === "object" &&
+        fileConfig.anythingllm !== undefined
+          ? { anythingllm: fileConfig.anythingllm }
+          : {};
+      sources[name] = "environment";
+    } else if (normalizedEnv[name]) {
       servers[name] = { ...normalizedEnv[name] };
       if (
         fileConfig &&

@@ -189,7 +189,10 @@ function ToolCountWarningBanner({ server, enabledToolCount }) {
 
 function RenderServerConfig({ config = null }) {
   const { t } = useTranslation();
+  // Invalid definitions (e.g. a malformed environment value) expose neither
+  // a launch command nor a hostname: the error banner below carries the state.
   if (!config) return null;
+  if (config.command === undefined && !config.domain) return null;
 
   // Safe backend representation exposes only hostname/domain, transport type,
   // source, and header names. Full URLs, paths, queries, and header values
