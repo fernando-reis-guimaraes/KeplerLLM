@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider e remote MCP server configuration através de environment variables.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables e default workspace bootstrap a partir de environment variables.
 
 ## Fork changes
 
@@ -370,12 +370,84 @@ MCP_OUTRO=https://example.com/mcp|Bearer|TOKEN|X-USER|Fernando|X-APP|Classlog
 - A implementation relevante vive em `server/utils/MCP/env.js` (helpers puros de parser/merge/sanitizer), `server/utils/MCP/hypervisor/index.js` (config efetiva, boot/logging secret-safe), `server/utils/MCP/index.js` (`servers()` sanitizado, guarda de delete environment-managed) e `frontend/src/pages/Admin/Agents/MCPServers/` (indicador de environment, exibição de config redigida).
 - Nenhum novo MCP transport, Hypervisor, config file ou agent framework foi introduzido.
 
+### Requirement 9 - Default workspace bootstrap a partir de environment variables
+
+#### Objective
+
+Provisionar o default AnythingLLM workspace no first boot a partir de environment variables, sem shell hacks, chamadas de API externas, curl de startup, scripts SQL diretos ou bypass dos models/services existentes do AnythingLLM.
+
+#### Observable behavior
+
+- Quando nenhuma variavel DEFAULT_WORKSPACE esta definida, o comportamento e exatamente o upstream AnythingLLM behavior.
+- Quando qualquer variavel DEFAULT_WORKSPACE esta definida, o server garante que o workspace configurado exista durante a application initialization e depois trata o database como source of truth.
+- Se o workspace configurado nao existir, ele e criado atraves da existing Workspace model layer com os valores fornecidos e persistido normalmente em SQLite ou PostgreSQL.
+- Se o workspace ja existir, o bootstrap nao sobrescreve valores alterados pela UI ou API. Restart ou redeploy do mesmo container e idempotente e nunca cria duplicatas.
+- DEFAULT_WORKSPACE_SLUG, quando explicitamente fornecido, identifica o workspace. Quando omitido, o existing AnythingLLM slug-generation behavior e usado.
+- DEFAULT_WORKSPACE_CHAT_MODE mapeia para o workspace chatMode. Valores aceitos: chat, query e automatic.
+- DEFAULT_WORKSPACE_TEMPERATURE mapeia para o workspace openAiTemp. Deve ser um number >= 0.
+- DEFAULT_WORKSPACE_HISTORY mapeia para o workspace openAiHistory. Deve ser um integer >= 0.
+- Valores numericos usam strict parsing. Por exemplo DEFAULT_WORKSPACE_TEMPERATURE=foo e DEFAULT_WORKSPACE_HISTORY=abc falham no startup com actionable configuration error em vez de coercao silenciosa.
+- Todas as variaveis exceto o workspace name sao opcionais. Por exemplo DEFAULT_WORKSPACE_NAME mais DEFAULT_WORKSPACE_SLUG sem system prompt e valido, e DEFAULT_WORKSPACE_NAME mais system prompt sem slug usa a normal slug generation. Variaveis unset preservam os defaults do AnythingLLM. Uma variavel unset nunca vira empty database value.
+- Quando qualquer variavel DEFAULT_WORKSPACE esta definida mas DEFAULT_WORKSPACE_NAME falta, o startup falha com erro claro indicando a variavel requerida.
+
+#### System prompt sources
+
+Tres fontes sao suportadas com precedencia FILE maior que BASE64 maior que plain.
+
+Simple prompt:
+
+```env
+DEFAULT_WORKSPACE_NAME=Kepler
+DEFAULT_WORKSPACE_SLUG=kepler
+DEFAULT_WORKSPACE_SYSTEM_PROMPT="You are Kepler AI."
+DEFAULT_WORKSPACE_CHAT_MODE=chat
+DEFAULT_WORKSPACE_TEMPERATURE=1
+DEFAULT_WORKSPACE_HISTORY=20
+```
+
+O valor plain-text e usado verbatim. Whitespace e newlines sao preservados exatamente.
+
+Base64 prompt:
+
+```env
+DEFAULT_WORKSPACE_SYSTEM_PROMPT_BASE64=<base64-value>
+```
+
+Gere o valor com um comando portatil:
+
+```bash
+base64 < system-prompt.txt | tr -d '\n'
+```
+
+No macOS o base64 quebra linhas por padrao; o pipe com tr produz a forma single-line esperada em environment variables. No GNU/Linux sem -w0 tambem ha quebra, entao o mesmo comando portatil funciona nas duas plataformas. O decoder tambem ignora ASCII whitespace, entao output com quebras ainda decodifica.
+
+Base64 e decodificado como standard Base64 para UTF-8. O conteudo decodificado vira o workspace openAiPrompt exatamente, com whitespace e newlines preservados. Base64 malformado falha no startup com actionable error e nunca faz fallback silencioso para a variavel plain-text. Bytes decodificados que nao sao UTF-8 valido falham no startup com actionable error.
+
+File prompt:
+
+```env
+DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE=/run/secrets/kepler-system-prompt.txt
+```
+
+O file e lido como UTF-8 e armazenado verbatim. O file deve existir e ser legivel; UTF-8 invalido produz clear startup error. Este modo evita limits de tamanho de environment variables do sistema operacional e suporta Docker/Kubernetes secret files.
+
+#### Size handling
+
+Nenhum application-level prompt limit desnecessariamente pequeno e imposto. Prompts nunca sofrem truncate. O Linux impoe limits praticos em environment strings individuais e o Base64 aumenta o payload em aproximadamente 33 porcento. A guidance operacional recomendada e manter system prompts decodificados em ate aproximadamente 64 KiB no modo plain/Base64 e usar DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE para prompts substancialmente maiores.
+
+#### Rules and limits
+
+- Bootstrap-only: environment variables nao sao continuamente authoritative. Elas nunca sobrescrevem database values no restart.
+- A concurrent initialization normalmente nao cria workspaces duplicados. A criacao com slug explicito e atomica; a criacao sem slug explicito reutiliza a upstream slug generation e recupera de unique-constraint races reutilizando o workspace existente.
+- As existing Workspace validation rules e accepted values sao reutilizadas. Nenhum slug algorithm separado incompativel e introduzido e nenhuma database schema change e necessaria.
+- O system prompt e potentially sensitive configuration. Seu conteudo, e o valor Base64 completo, nunca sao emitidos em normal logs. O startup registra apenas safe metadata, por exemplo workspace=kepler, systemPromptSource=base64 e systemPromptBytes=18432.
+
 #### Out of scope
 
-- Pipe escaping ou quoting rules.
-- JSON dentro de environment variables.
-- Transports não HTTP via envvars (stdio/SSE continuam file-configured).
-- Migração automática de dados de qualquer tipo.
+- Tornar environment variables permanentemente authoritative sobre a workspace configuration.
+- Migracao automatica de dados de qualquer tipo.
+- Alterar a existing AnythingLLM workspace creation, UI-created workspaces, API-created workspaces, migrations ou upstream defaults.
+
 
 ## Appendix - Operational reference
 
@@ -398,6 +470,14 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `DATABASE_URL`                 | unset                 | Quando ausente, usa SQLite. Quando contém `postgresql://...`, usa PostgreSQL.           |
 | `GENERIC_OPEN_AI_API_MODE`     | `chat-completions`    | Protocolo do Generic OpenAI: `chat-completions` (default) ou `responses` (Responses API). |
 | `MCP_<NAME>`                   | unset                 | Um remote Streamable HTTP MCP server por variável, ex. `MCP_DOCS=https://host/XXX/mcp`. O env vence o MCP JSON file. |
+| `DEFAULT_WORKSPACE_NAME`       | unset                 | Nome do workspace de bootstrap. Exigido quando qualquer `DEFAULT_WORKSPACE_*` esta definida. |
+| `DEFAULT_WORKSPACE_SLUG`       | unset                 | Slug do workspace de bootstrap. Quando definida, identifica o workspace. Sem ela, usa slug generation. |
+| `DEFAULT_WORKSPACE_SYSTEM_PROMPT` | unset              | System prompt como texto plain, verbatim. Precedencia mais baixa. |
+| `DEFAULT_WORKSPACE_SYSTEM_PROMPT_BASE64` | unset       | System prompt como Base64 UTF-8 padrao. Precedencia intermediaria. |
+| `DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE` | unset         | System prompt como caminho de arquivo UTF-8. Precedencia mais alta. |
+| `DEFAULT_WORKSPACE_CHAT_MODE`  | unset                 | chatMode de bootstrap: chat, query ou automatic. Unset preserva o default. |
+| `DEFAULT_WORKSPACE_TEMPERATURE` | unset                | openAiTemp de bootstrap como number >= 0. Unset preserva o default. |
+| `DEFAULT_WORKSPACE_HISTORY`    | unset                 | openAiHistory de bootstrap como integer >= 0. Unset preserva o default. |
 
 O deployment monta apenas:
 
@@ -458,6 +538,33 @@ MCP_CODE=https://src.example.com/XXX/mcp|Basic|Usuario:Senha
 ```
 
 Os nomes normalizam `MCP_<NAME>` para lowercase com `_` como `-`. Environment definitions sobrescrevem entradas de mesmo nome em `anythingllm_mcp_servers.json` sem escrever nesse arquivo. Só o hostname aparece na UI; paths, queries e header values são redigidos.
+
+Opcionalmente faca bootstrap do default workspace (bootstrap-only, idempotente; prompt ficticio):
+
+```text
+DEFAULT_WORKSPACE_NAME=Kepler
+DEFAULT_WORKSPACE_SLUG=kepler
+DEFAULT_WORKSPACE_SYSTEM_PROMPT="You are Kepler AI."
+DEFAULT_WORKSPACE_CHAT_MODE=chat
+DEFAULT_WORKSPACE_TEMPERATURE=1
+DEFAULT_WORKSPACE_HISTORY=20
+```
+
+Para prompts grandes ou multilinha prefira Base64 ou secret file. Encoding Base64 portatil:
+
+```bash
+base64 < system-prompt.txt | tr -d '\n'
+```
+
+```text
+DEFAULT_WORKSPACE_SYSTEM_PROMPT_BASE64=<base64-value>
+```
+
+```text
+DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE=/run/secrets/kepler-system-prompt.txt
+```
+
+A precedencia do prompt e FILE maior que BASE64 maior que plain. O database e source of truth apos a criacao; restarts nunca sobrescrevem mudancas da UI/API. Mantenha prompts decodificados via env em ate aproximadamente 64 KiB; use o modo file para prompts maiores. Base64 aumenta o payload em aproximadamente 33 porcento.
 
 Mantenha o named volume:
 
