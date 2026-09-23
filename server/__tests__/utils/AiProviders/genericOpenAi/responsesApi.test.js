@@ -5,6 +5,7 @@ const {
   resolveApiMode,
   chatMessagesToResponsesInput,
   agentMessagesToResponsesInput,
+  agentMessagesToResponsesContinuationInput,
   normalizeResponsesUsage,
 } = require("../../../../utils/AiProviders/genericOpenAi/responses.js");
 const GenericOpenAiProvider = require("../../../../utils/agents/aibitat/providers/genericOpenAi.js");
@@ -429,16 +430,28 @@ describe("Responses agent tool calling", () => {
     );
 
     const request = provider._client.responses.create.mock.calls[0][0];
-    expect(request.tools).toEqual([
-      {
-        type: "function",
-        name: "get-time",
-        description: "Returns the current time",
-        parameters: functions[0].parameters,
-        strict: false,
-      },
-    ]);
+    // First turn of a run: full input, no chaining, capped output.
+    expect(request).toEqual({
+      model: "test-model",
+      input: [{ role: "user", content: "what time is it?" }],
+      stream: false,
+      parallel_tool_calls: false,
+      max_output_tokens: 131072,
+      tools: [
+        {
+          type: "function",
+          name: "get-time",
+          description: "Returns the current time",
+          parameters: functions[0].parameters,
+          strict: false,
+        },
+      ],
+    });
     expect(request).not.toHaveProperty("temperature");
+    expect(request).not.toHaveProperty("previous_response_id");
+    // store is omitted so the provider default applies and server-side
+    // chaining is not defeated.
+    expect(request).not.toHaveProperty("store");
     expect(result.functionCall).toEqual({
       id: "call_1",
       name: "get-time",
@@ -447,6 +460,43 @@ describe("Responses agent tool calling", () => {
     expect(result.textResponse).toBeNull();
     expect(result.usage.prompt_tokens).toBe(20);
     expect(result.usage.completion_tokens).toBe(8);
+  });
+
+  it("consumes only the first of simultaneous tool calls (one turn = one call)", async () => {
+    const provider = mockAgentProvider();
+    provider._client.responses.create.mockResolvedValue({
+      id: "resp_multi",
+      usage: { input_tokens: 20, output_tokens: 8, total_tokens: 28 },
+      output: [
+        {
+          type: "function_call",
+          call_id: "call_a",
+          name: "get-time",
+          arguments: '{"tz":"UTC"}',
+        },
+        {
+          type: "function_call",
+          call_id: "call_b",
+          name: "get-time",
+          arguments: '{"tz":"PST"}',
+        },
+      ],
+    });
+
+    const result = await provider.complete(
+      [{ role: "user", content: "both times" }],
+      functions
+    );
+    // AIbitat executes one function call per model turn; parallel calls are
+    // not fanned out, and parallel_tool_calls:false asks for serial turns.
+    expect(
+      provider._client.responses.create.mock.calls[0][0].parallel_tool_calls
+    ).toBe(false);
+    expect(result.functionCall).toEqual({
+      id: "call_a",
+      name: "get-time",
+      arguments: { tz: "UTC" },
+    });
   });
 
   it("sends tool outputs back and chains previous_response_id", async () => {
@@ -496,21 +546,34 @@ describe("Responses agent tool calling", () => {
     );
 
     const request = provider._client.responses.create.mock.calls[1][0];
-    expect(request.previous_response_id).toBe("resp_tool_1");
-    expect(request.input).toEqual([
-      { role: "user", content: "what time is it?" },
-      {
-        type: "function_call",
-        name: "get-time",
-        call_id: "call_1",
-        arguments: '{"tz":"UTC"}',
-      },
-      {
-        type: "function_call_output",
-        call_id: "call_1",
-        output: "12:00 UTC",
-      },
-    ]);
+    // Stateful continuation: only the NEW tool output is sent. The previous
+    // response already holds the user input and its function_call, so neither
+    // may be resent.
+    expect(request).toEqual({
+      model: "test-model",
+      input: [
+        {
+          type: "function_call_output",
+          call_id: "call_1",
+          output: "12:00 UTC",
+        },
+      ],
+      stream: false,
+      parallel_tool_calls: false,
+      max_output_tokens: 131072,
+      tools: [
+        {
+          type: "function",
+          name: "get-time",
+          description: "Returns the current time",
+          parameters: functions[0].parameters,
+          strict: false,
+        },
+      ],
+      previous_response_id: "resp_tool_1",
+    });
+    expect(JSON.stringify(request.input)).not.toContain("what time is it?");
+    expect(JSON.stringify(request.input)).not.toContain('"function_call"');
     expect(second.functionCall).toBeNull();
     expect(second.textResponse).toBe("It is noon UTC.");
   });
@@ -551,8 +614,18 @@ describe("Responses agent tool calling", () => {
       },
     ];
     const turn2 = await provider.complete(messages, functions);
+    // Second turn chains resp_call_1 with only the new tool output.
     expect(provider._client.responses.create.mock.calls[1][0]).toEqual(
-      expect.objectContaining({ previous_response_id: "resp_call_1" })
+      expect.objectContaining({
+        previous_response_id: "resp_call_1",
+        input: [
+          {
+            type: "function_call_output",
+            call_id: "call_1",
+            output: "12:00 UTC",
+          },
+        ],
+      })
     );
     messages = [
       ...messages,
@@ -564,8 +637,19 @@ describe("Responses agent tool calling", () => {
       },
     ];
     const turn3 = await provider.complete(messages, functions);
+    // Third turn advances the chain (resp_call_1 -> resp_call_2) with only
+    // the newest tool output; history is never replayed while chained.
     expect(provider._client.responses.create.mock.calls[2][0]).toEqual(
-      expect.objectContaining({ previous_response_id: "resp_call_2" })
+      expect.objectContaining({
+        previous_response_id: "resp_call_2",
+        input: [
+          {
+            type: "function_call_output",
+            call_id: "call_2",
+            output: "04:00 PST",
+          },
+        ],
+      })
     );
     expect(turn3.functionCall).toBeNull();
     expect(turn3.textResponse).toBe("Both times reported.");
@@ -613,10 +697,119 @@ describe("Responses agent tool calling", () => {
       functions
     );
     expect(provider._client.responses.create).toHaveBeenCalledTimes(3);
-    expect(provider._client.responses.create.mock.calls[2][0]).not.toHaveProperty(
-      "previous_response_id"
-    );
+    const retryRequest = provider._client.responses.create.mock.calls[2][0];
+    // The stateless fallback must be independently valid: no chaining id,
+    // but the COMPLETE reconstructed input (user + function_call pair).
+    // A delta-only payload here would reference a call the server never saw.
+    expect(retryRequest).not.toHaveProperty("previous_response_id");
+    expect(retryRequest.input).toEqual([
+      { role: "user", content: "time?" },
+      {
+        type: "function_call",
+        name: "get-time",
+        call_id: "call_9",
+        arguments: "{}",
+      },
+      {
+        type: "function_call_output",
+        call_id: "call_9",
+        output: "noon",
+      },
+    ]);
     expect(second.textResponse).toBe("ok");
+  });
+
+  it("clears continuation state after the final answer (run isolation)", async () => {
+    const provider = mockAgentProvider();
+    provider._client.responses.create
+      .mockResolvedValueOnce({
+        id: "resp_run_a",
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+        output_text: "done A",
+        output: [],
+      })
+      .mockResolvedValueOnce({
+        id: "resp_run_b",
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+        output_text: "done B",
+        output: [],
+      });
+
+    await provider.complete([{ role: "user", content: "run A" }], []);
+    // A new conversation on the same instance must not receive resp_run_a,
+    // even though its history is longer than the previous run's.
+    const result = await provider.complete(
+      [
+        { role: "user", content: "run A" },
+        { role: "assistant", content: "done A" },
+        { role: "user", content: "run B" },
+      ],
+      []
+    );
+    expect(
+      provider._client.responses.create.mock.calls[1][0]
+    ).not.toHaveProperty("previous_response_id");
+    expect(result.textResponse).toBe("done B");
+  });
+
+  it("resetCumulativeUsage drops pending continuation state", async () => {
+    const provider = mockAgentProvider();
+    provider._client.responses.create
+      .mockResolvedValueOnce({
+        id: "resp_pending",
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+        output: [
+          {
+            type: "function_call",
+            call_id: "call_p",
+            name: "get-time",
+            arguments: "{}",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        id: "resp_after_reset",
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+        output_text: "fresh",
+        output: [],
+      });
+
+    const first = await provider.complete(
+      [{ role: "user", content: "time?" }],
+      functions
+    );
+    expect(first.functionCall).not.toBeNull();
+    // AIbitat calls this at depth 0 of every execution: the next turn must
+    // start a new chain even though the history extends the old prefix.
+    provider.resetCumulativeUsage();
+    await provider.complete(
+      [
+        { role: "user", content: "time?" },
+        {
+          role: "function",
+          name: "get-time",
+          content: "noon",
+          originalFunctionCall: first.functionCall,
+        },
+      ],
+      functions
+    );
+    const request = provider._client.responses.create.mock.calls[1][0];
+    expect(request).not.toHaveProperty("previous_response_id");
+    expect(request.input).toEqual([
+      { role: "user", content: "time?" },
+      {
+        type: "function_call",
+        name: "get-time",
+        call_id: "call_p",
+        arguments: "{}",
+      },
+      {
+        type: "function_call_output",
+        call_id: "call_p",
+        output: "noon",
+      },
+    ]);
   });
 
   it("does not leak response ids into unrelated conversations", async () => {
@@ -720,6 +913,94 @@ describe("Responses agent tool calling", () => {
     ).toEqual(["hel", "lo"]);
   });
 
+  it("sends max_output_tokens on streaming agent Responses requests", async () => {
+    const provider = mockAgentProvider();
+    provider._client.responses.create.mockResolvedValue(
+      toAsyncIterable([
+        { type: "response.output_text.delta", delta: "hi" },
+        {
+          type: "response.completed",
+          response: {
+            id: "resp_stream_max",
+            usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6 },
+          },
+        },
+      ])
+    );
+
+    await provider.stream([{ role: "user", content: "hi" }], [], () => {});
+    expect(provider._client.responses.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stream: true,
+        max_output_tokens: 131072,
+      })
+    );
+  });
+
+  it("streams a tool continuation with delta-only input", async () => {
+    const provider = mockAgentProvider();
+    provider._client.responses.create
+      .mockResolvedValueOnce({
+        id: "resp_stream_tool_1",
+        usage: { input_tokens: 12, output_tokens: 7, total_tokens: 19 },
+        output: [
+          {
+            type: "function_call",
+            call_id: "call_st1",
+            name: "get-time",
+            arguments: '{"tz":"UTC"}',
+          },
+        ],
+      })
+      .mockResolvedValue(
+        toAsyncIterable([
+          { type: "response.output_text.delta", delta: "noon" },
+          {
+            type: "response.completed",
+            response: {
+              id: "resp_stream_tool_2",
+              usage: { input_tokens: 14, output_tokens: 2, total_tokens: 16 },
+            },
+          },
+        ])
+      );
+
+    const first = await provider.complete(
+      [{ role: "user", content: "time?" }],
+      functions
+    );
+    const result = await provider.stream(
+      [
+        { role: "user", content: "time?" },
+        {
+          role: "function",
+          name: "get-time",
+          content: "12:00 UTC",
+          originalFunctionCall: first.functionCall,
+        },
+      ],
+      functions,
+      () => {}
+    );
+    const request = provider._client.responses.create.mock.calls[1][0];
+    expect(request).toEqual(
+      expect.objectContaining({
+        stream: true,
+        previous_response_id: "resp_stream_tool_1",
+        max_output_tokens: 131072,
+      })
+    );
+    expect(request.input).toEqual([
+      {
+        type: "function_call_output",
+        call_id: "call_st1",
+        output: "12:00 UTC",
+      },
+    ]);
+    expect(result.textResponse).toBe("noon");
+    expect(result.functionCall).toBeNull();
+  });
+
   it("agentMessages conversion keeps attachments and skips orphan function results", () => {
     const logged = [];
     const input = agentMessagesToResponsesInput(
@@ -750,6 +1031,57 @@ describe("Responses agent tool calling", () => {
         },
       ],
     });
+    expect(logged).toHaveLength(1);
+  });
+
+  it("continuation conversion emits only function_call_output for tool results", () => {
+    const logged = [];
+    const input = agentMessagesToResponsesContinuationInput(
+      [
+        {
+          role: "function",
+          name: "get-time",
+          content: "12:00 UTC",
+          originalFunctionCall: {
+            id: "call_1",
+            name: "get-time",
+            arguments: { tz: "UTC" },
+          },
+        },
+        {
+          role: "user",
+          content: "[Attached image(s) from tool result]",
+          attachments: [
+            {
+              name: "image.png",
+              mime: "image/png",
+              contentString: "data:image/png;base64,AAAA",
+            },
+          ],
+        },
+        { role: "function", name: "x", content: "orphan" },
+      ],
+      { onSkipFunctionMessage: (message) => logged.push(message) }
+    );
+    // No duplicated function_call: the chained response already holds it.
+    expect(input).toEqual([
+      {
+        type: "function_call_output",
+        call_id: "call_1",
+        output: "12:00 UTC",
+      },
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: "[Attached image(s) from tool result]" },
+          {
+            type: "input_image",
+            image_url: "data:image/png;base64,AAAA",
+            detail: "auto",
+          },
+        ],
+      },
+    ]);
     expect(logged).toHaveLength(1);
   });
 });

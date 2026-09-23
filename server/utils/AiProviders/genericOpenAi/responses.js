@@ -152,61 +152,26 @@ function chatMessagesToResponsesInput(messages = []) {
 }
 
 /**
- * Converts aibitat agent messages into a Responses `input` array.
- * - system/user/assistant pass through (attachments expanded to input blocks).
- * - role "function" with originalFunctionCall becomes a function_call +
- *   function_call_output pair carrying the provider's call id so outputs map
- *   back to the tool call that produced them.
- * - role "function" without originalFunctionCall cannot be mapped (the
- *   Responses API requires a call id) and is skipped with a log hook.
- * @param {Array<object>} messages
- * @param {{onSkipFunctionMessage?: (message: object) => void}} [hooks]
- * @returns {Array<object>}
+ * Converts a single non-function aibitat message (system/user/assistant) into
+ * a Responses input item, expanding attachments into input blocks.
+ * Shared by the full-reconstruction and delta-continuation converters.
+ * @param {object} message
+ * @returns {object}
  */
-function agentMessagesToResponsesInput(messages = [], hooks = {}) {
-  const input = [];
-  for (const message of messages ?? []) {
-    if (message?.role === "function") {
-      const call = message.originalFunctionCall;
-      if (!call?.id) {
-        hooks.onSkipFunctionMessage?.(message);
-        continue;
-      }
-      const args =
-        typeof call.arguments === "string"
-          ? call.arguments
-          : JSON.stringify(call.arguments ?? {});
-      input.push(
-        {
-          type: "function_call",
-          name: call.name,
-          call_id: call.id,
-          arguments: args,
-        },
-        {
-          type: "function_call_output",
-          call_id: call.id,
-          output:
-            typeof message.content === "string"
-              ? message.content
-              : JSON.stringify(message.content ?? ""),
-        }
-      );
-      continue;
-    }
+function agentTextMessageToResponsesInput(message) {
+  const attachments = Array.isArray(message?.attachments)
+    ? message.attachments
+    : [];
+  if (attachments.length === 0) {
+    return {
+      role: message.role,
+      content: chatContentToResponsesContent(message.content),
+    };
+  }
 
-    const attachments = Array.isArray(message?.attachments)
-      ? message.attachments
-      : [];
-    if (attachments.length === 0) {
-      input.push({
-        role: message.role,
-        content: chatContentToResponsesContent(message.content),
-      });
-      continue;
-    }
-
-    const content = [
+  return {
+    role: message.role,
+    content: [
       {
         type: "input_text",
         text:
@@ -215,8 +180,107 @@ function agentMessagesToResponsesInput(messages = [], hooks = {}) {
             : JSON.stringify(message.content ?? ""),
       },
       ...attachments.map(attachmentToResponsesBlock),
-    ];
-    input.push({ role: message.role, content });
+    ],
+  };
+}
+
+/**
+ * Converts a single function-role aibitat message into Responses items.
+ * @param {object} message
+ * @param {{pairFunctionCall: boolean}} options
+ *   - pairFunctionCall: true rebuilds the function_call + function_call_output
+ *     pair (stateless full-history reconstruction); false emits only the
+ *     function_call_output (stateful delta continuation, where the
+ *     function_call already lives in the previous server-side response).
+ * @returns {{items: Array<object>, skipped: boolean}}
+ */
+function agentFunctionMessageToResponsesItems(
+  message,
+  { pairFunctionCall = true } = {}
+) {
+  const call = message?.originalFunctionCall;
+  if (!call?.id) return { items: [], skipped: true };
+  const output = {
+    type: "function_call_output",
+    call_id: call.id,
+    output:
+      typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content ?? ""),
+  };
+  if (!pairFunctionCall) return { items: [output], skipped: false };
+  const args =
+    typeof call.arguments === "string"
+      ? call.arguments
+      : JSON.stringify(call.arguments ?? {});
+  return {
+    items: [
+      {
+        type: "function_call",
+        name: call.name,
+        call_id: call.id,
+        arguments: args,
+      },
+      output,
+    ],
+    skipped: false,
+  };
+}
+
+/**
+ * Converts aibitat agent messages into a Responses `input` array.
+ * This is the full/stateless reconstruction path: every message is converted,
+ * and role "function" results become a function_call + function_call_output
+ * pair carrying the provider's call id so outputs map back to the tool call
+ * that produced them.
+ * Role "function" without originalFunctionCall cannot be mapped (the
+ * Responses API requires a call id) and is skipped with a log hook.
+ * @param {Array<object>} messages
+ * @param {{onSkipFunctionMessage?: (message: object) => void}} [hooks]
+ * @returns {Array<object>}
+ */
+function agentMessagesToResponsesInput(messages = [], hooks = {}) {
+  const input = [];
+  for (const message of messages ?? []) {
+    if (message?.role === "function") {
+      const { items, skipped } = agentFunctionMessageToResponsesItems(message, {
+        pairFunctionCall: true,
+      });
+      if (skipped) hooks.onSkipFunctionMessage?.(message);
+      else input.push(...items);
+      continue;
+    }
+    input.push(agentTextMessageToResponsesInput(message));
+  }
+  return input;
+}
+
+/**
+ * Converts only newly-added aibitat messages into Responses continuation
+ * input for a request chained with `previous_response_id`.
+ * The preceding server-side response already contains the prior conversation
+ * state and its function_call, so a completed function result contributes
+ * ONLY its function_call_output - resending the function_call would duplicate
+ * the tool call. New user/assistant/system messages pass through normally.
+ * @param {Array<object>} newMessages - messages appended since the chained response
+ * @param {{onSkipFunctionMessage?: (message: object) => void}} [hooks]
+ * @returns {Array<object>}
+ */
+function agentMessagesToResponsesContinuationInput(
+  newMessages = [],
+  hooks = {}
+) {
+  const input = [];
+  for (const message of newMessages ?? []) {
+    if (message?.role === "function") {
+      const { items, skipped } = agentFunctionMessageToResponsesItems(message, {
+        pairFunctionCall: false,
+      });
+      if (skipped) hooks.onSkipFunctionMessage?.(message);
+      else input.push(...items);
+      continue;
+    }
+    input.push(agentTextMessageToResponsesInput(message));
   }
   return input;
 }
@@ -244,6 +308,11 @@ function formatToolsForResponses(functions = []) {
  * Temperature is intentionally omitted: many Responses-only reasoning
  * deployments reject it, and the agent chat-completions path never sent it.
  * Callers that must send temperature can spread it in afterwards.
+ * `store` is omitted unless explicitly passed: forcing `store: false`
+ * defeats server-side `previous_response_id` chaining (the previous response
+ * must be retained for the chain to resolve), while omitting it lets each
+ * provider apply its own default. Callers that never chain (single-turn chat)
+ * pass `store: false` explicitly to avoid retaining server-side state.
  * @param {object} options
  * @param {string} options.model
  * @param {Array<object>|string} options.input
@@ -251,6 +320,7 @@ function formatToolsForResponses(functions = []) {
  * @param {boolean} [options.stream=false]
  * @param {Array<object>} [options.tools=[]]
  * @param {string|null} [options.previousResponseId=null]
+ * @param {boolean} [options.store]
  * @returns {object}
  */
 function buildResponsesRequest({
@@ -260,12 +330,13 @@ function buildResponsesRequest({
   stream = false,
   tools = [],
   previousResponseId = null,
+  store,
 }) {
   return {
     model,
     input,
     stream,
-    store: false,
+    ...(store !== undefined ? { store } : {}),
     parallel_tool_calls: false,
     ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
     ...(Array.isArray(tools) && tools.length > 0 ? { tools } : {}),
@@ -399,6 +470,7 @@ module.exports = {
   attachmentToResponsesBlock,
   chatMessagesToResponsesInput,
   agentMessagesToResponsesInput,
+  agentMessagesToResponsesContinuationInput,
   formatToolsForResponses,
   buildResponsesRequest,
   extractResponsesText,

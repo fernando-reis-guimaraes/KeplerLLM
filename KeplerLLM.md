@@ -279,6 +279,7 @@ Allow the Generic OpenAI provider (`LLM_PROVIDER=generic-openai`) to use OpenAI-
 - When set to `responses`, normal chat, streaming chat, and native agent/MCP tool calling run against the Responses API through the official OpenAI SDK (`responses.create`).
 - Responses results (text, reasoning, tool calls, token usage, metrics) are normalized into the existing internal contracts, so chat, streaming, and the agent loop work without protocol-specific branches downstream.
 - During multi-turn agent tool execution, the provider chains the Responses continuation identifier within the active run when the provider supports it, and retries once stateless when the provider rejects it.
+- Chained continuation requests send only newly produced input (for example just the `function_call_output`); the stateless retry instead resends the complete reconstructed history so the request stays independently valid. Continuation state never leaves the active agent run.
 - An invalid value logs a clear warning and falls back to `chat-completions`.
 - At startup the provider logs the selected protocol (without credentials):
 

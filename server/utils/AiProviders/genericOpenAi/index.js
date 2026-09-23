@@ -265,11 +265,13 @@ class GenericOpenAiLLM {
   }
 
   /**
-   * Responses API request helper.
+   * Responses API request helper for single-turn chat.
    * - `messages` (chat-completions shape) are converted to Responses `input`.
    * - `max_tokens` becomes `max_output_tokens`.
    * - `temperature` is intentionally omitted: Responses-only reasoning
    *   deployments commonly reject it, and nothing downstream requires it.
+   * - `store: false` is explicit here because single-turn chat never chains
+   *   `previous_response_id`, so no server-side state needs retaining.
    */
   #createResponse({ messages, stream = false }) {
     return this.openai.responses.create(
@@ -278,6 +280,7 @@ class GenericOpenAiLLM {
         input: chatMessagesToResponsesInput(messages),
         maxOutputTokens: this.maxTokens,
         stream,
+        store: false,
       })
     );
   }

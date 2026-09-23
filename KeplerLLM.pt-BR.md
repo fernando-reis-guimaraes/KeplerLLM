@@ -279,6 +279,7 @@ Permitir que o Generic OpenAI provider (`LLM_PROVIDER=generic-openai`) use endpo
 - Quando definido como `responses`, normal chat, streaming chat e native agent/MCP tool calling rodam contra a Responses API através do official OpenAI SDK (`responses.create`).
 - Resultados de Responses (text, reasoning, tool calls, token usage, metrics) são normalizados para os existing internal contracts, de modo que chat, streaming e o agent loop funcionam sem branches protocol-specific downstream.
 - Durante a execução multi-turn de agent tools, o provider encadeia o Responses continuation identifier dentro do active run quando o provider suporta, e tenta uma vez stateless quando o provider o rejeita.
+- Requests encadeados de continuation enviam apenas o input recém-produzido (por exemplo só o `function_call_output`); o retry stateless reenvia o histórico completo reconstruído para que o request continue independentemente válido. O continuation state nunca sai do active agent run.
 - Um valor inválido gera um warning claro e retorna para `chat-completions`.
 - No startup, o provider registra o protocolo selecionado (sem credentials):
 
