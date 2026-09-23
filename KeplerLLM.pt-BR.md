@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables, default workspace bootstrap a partir de environment variables e optional UI-only hiding dos Settings entry buttons.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables, default workspace bootstrap a partir de environment variables, default Agent Skills bootstrap a partir de environment variable e optional UI-only hiding dos Settings entry buttons.
 
 ## Fork changes
 
@@ -477,6 +477,57 @@ Opcionalmente ocultar os Settings entry buttons para desencorajar acesso casual 
 - Route protection, authentication, authorization, RBAC, middleware, redirects ou server-side access restrictions.
 - Ocultar qualquer outro elemento da UI.
 
+### Requirement 11 - Default Agent Skills bootstrap a partir de environment variable
+
+#### Objective
+
+Habilitar as opt-in AnythingLLM Agent Skills no first boot a partir de uma única environment variable, sem shell hacks, chamadas de API externas, comandos curl de startup, scripts SQL diretos ou bypass dos models/services existentes do AnythingLLM.
+
+#### Observable behavior
+
+- Quando `DEFAULT_AGENT_SKILLS` esta ausente, o comportamento segue exatamente o upstream AnythingLLM behavior. Nenhuma row `default_agent_skills` e criada ou modificada apenas porque o KeplerLLM iniciou.
+- Quando `DEFAULT_AGENT_SKILLS` esta definida e ainda nao existe row de system setting `default_agent_skills`, o server persiste a lista parseada durante a application initialization pela camada existente do SystemSettings model, de forma identica em SQLite e PostgreSQL.
+- O valor e uma lista comma-separated de skill identifiers. O whitespace ao redor e removido, entradas vazias de separadores repetidos sao removidas e duplicatas sao removidas com ordenacao deterministica. Exemplo:
+
+```env
+DEFAULT_AGENT_SKILLS=filesystem-agent,create-files-agent,create-chart,web-browsing,sql-agent,create-scheduled-job
+```
+
+- Em uma instancia fresh/unconfigured, as Agent Skills listadas sao persistidas como enabled defaults, sujeitas as availability, mode e runtime restrictions existentes do upstream.
+- Definir `DEFAULT_AGENT_SKILLS` explicitamente como empty string e configuracao intencional: faz bootstrap de uma lista vazia, de modo que nenhuma opt-in Agent Skill inicia habilitada.
+- Uma vez que a row `default_agent_skills` existe, ela nunca e sobrescrita, mesmo quando `DEFAULT_AGENT_SKILLS` esta diferente no momento. Mudancas feitas pela UI ou API sobrevivem a restart e redeploy. Apos a inicializacao, o database e source of truth; a environment variable e um valor default/bootstrap, nao configuracao continuamente autoritativa.
+- Um skill identifier desconhecido falha o startup de forma clara e antecipada, com erro nomeando `DEFAULT_AGENT_SKILLS` e o identifier invalido, junto dos identifiers aceitos. Nada e parcialmente persistido quando um membro e invalido.
+
+#### Accepted values
+
+No baseline atual `1.16.1`, os identifiers aceitos sao as user-facing opt-in Agent Skills:
+
+```text
+filesystem-agent
+create-files-agent
+create-chart
+web-browsing
+sql-agent
+create-scheduled-job
+```
+
+#### Rules and limits
+
+- Bootstrap-only: a environment variable e lida para inicializar o setting. Ela nunca sobrescreve valores do database no restart.
+- A existencia da row `system_settings` com label `default_agent_skills` e por si so o marcador de inicializacao. Nenhum bootstrap marker setting extra e usado.
+- Esta variavel controla apenas o conjunto opt-in `default_agent_skills`. Ela nao controla as default-enabled skills representadas por `disabled_agent_skills` (`rag-memory`, `document-summarizer`, `web-scraping`), cujas semanticas permanecem inalteradas.
+- `DEFAULT_AGENT_SKILLS` apenas inicializa o system setting `default_agent_skills` existente. Ela nao ignora os skill availability checks (por exemplo `filesystem-agent` e `create-files-agent`) nem as restricoes single-user/multi-user (por exemplo `create-scheduled-job`, indisponivel em multi-user mode).
+- A validacao server-side usa uma pequena lista canonica explicita alinhada com as configurable skills exibidas pela Agent Skills UI, de modo que internal plugins, app-integration skills (`gmail-agent`, `google-calendar-agent`, `outlook-agent`), Custom Skills importadas, Agent Flows e MCP servers nunca podem ser habilitados por esta variavel.
+- O bootstrap e concluido antes que o listening socket esteja disponivel, seguindo o padrao fail-fast do default workspace bootstrap. Os logs de startup registram apenas metadata segura (nomes e contagem das skills), nunca secrets.
+- Nenhuma database schema migration e necessaria.
+
+#### Out of scope
+
+- Tornar a environment variable permanentemente autoritativa sobre a configuracao das Agent Skills.
+- Mudar as semanticas de `disabled_agent_skills` ou as default-enabled skills.
+- Configurar Gmail, Google Calendar, Outlook, Custom Skills, Agent Flows ou MCP servers.
+- Qualquer tipo de automatic data migration.
+
 ## Appendix - Operational reference
 
 Este apêndice registra apenas os fatos de runtime e publishing necessários para operar o fork. Não descreve implementation.
@@ -506,6 +557,7 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `DEFAULT_WORKSPACE_CHAT_MODE`  | unset                 | chatMode de bootstrap: chat, query ou automatic. Unset preserva o default. |
 | `DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE` | unset                | openAiTemp de bootstrap como number >= 0. Unset preserva o default. |
 | `DEFAULT_WORKSPACE_HISTORY`    | unset                 | openAiHistory de bootstrap como integer >= 0. Unset preserva o default. |
+| `DEFAULT_AGENT_SKILLS`         | unset                 | Bootstrap das opt-in Agent Skills como lista comma-separated. Unset preserva o upstream behavior. Empty string nao habilita nenhuma. Configuracao existente do DB nunca e sobrescrita. |
 | `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | Quando presente com qualquer valor, oculta os Settings entry buttons apenas na UI. URLs diretas continuam funcionando. |
 
 O deployment monta apenas:
@@ -594,6 +646,14 @@ DEFAULT_WORKSPACE_SYSTEM_PROMPT_FILE=/run/secrets/kepler-system-prompt.txt
 ```
 
 A precedencia do prompt e FILE nao vazio maior que BASE64 nao vazio maior que plain (FILE/BASE64 vazios comportam-se como nao configurados). O database e source of truth apos a criacao; restarts nunca sobrescrevem mudancas da UI/API. Mantenha prompts decodificados via env em ate aproximadamente 64 KiB; use o modo file para prompts maiores. Base64 aumenta o payload em aproximadamente 33 porcento.
+
+Opcionalmente faca bootstrap das opt-in Agent Skills (bootstrap-only, idempotente):
+
+```text
+DEFAULT_AGENT_SKILLS=filesystem-agent,create-files-agent,create-chart,web-browsing,sql-agent,create-scheduled-job
+```
+
+Quando ausente, o upstream behavior e preservado. Uma empty string explicita nao habilita inicialmente nenhuma opt-in skill. Os valores aceitos sao `filesystem-agent`, `create-files-agent`, `create-chart`, `web-browsing`, `sql-agent` e `create-scheduled-job`. Um setting `default_agent_skills` existente no database nunca e sobrescrito; o database e source of truth apos a inicializacao. Identifiers invalidos falham o startup. O comportamento e identico em SQLite e PostgreSQL. Esta variavel nao controla as default-enabled skills representadas por `disabled_agent_skills`.
 
 Opcionalmente oculte os Settings entry buttons apenas na UI (as Settings URLs diretas permanecem acessiveis):
 

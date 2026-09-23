@@ -8,6 +8,7 @@ const markOnboarded = require("./markOnboarded");
 const { PushNotifications } = require("../PushNotifications");
 const { TelegramBotService } = require("../telegramBot");
 const { bootstrapDefaultWorkspace } = require("./defaultWorkspace");
+const { bootstrapDefaultAgentSkills } = require("./defaultAgentSkills");
 
 // KeplerLLM fork: bootstrap the default workspace from DEFAULT_WORKSPACE_*
 // environment variables. Bootstrap-only and idempotent: an existing workspace
@@ -19,6 +20,21 @@ async function bootDefaultWorkspace() {
   } catch (e) {
     console.error(
       `\x1b[31m[DEFAULT WORKSPACE BOOTSTRAP FAILED]\x1b[0m ${e.message}`
+    );
+    process.exit(1);
+  }
+}
+
+// KeplerLLM fork: bootstrap the opt-in Agent Skills from DEFAULT_AGENT_SKILLS.
+// Bootstrap-only and idempotent: an existing default_agent_skills setting is
+// never overwritten. Invalid identifiers fail fast so a misconfigured
+// deployment does not start with silently wrong agent skills.
+async function bootDefaultAgentSkills() {
+  try {
+    await bootstrapDefaultAgentSkills();
+  } catch (e) {
+    console.error(
+      `\x1b[31m[DEFAULT AGENT SKILLS BOOTSTRAP FAILED]\x1b[0m ${e.message}`
     );
     process.exit(1);
   }
@@ -60,6 +76,7 @@ async function bootSSL(app, port = 3001) {
 
   // KeplerLLM fork: bootstrap completes before the listening socket exists.
   await bootDefaultWorkspace();
+  await bootDefaultAgentSkills();
 
   const https = require("https");
   const server = https.createServer(credentials, app);
@@ -87,6 +104,7 @@ async function bootHTTP(app, port = 3001) {
 
   // KeplerLLM fork: bootstrap completes before the listening socket exists.
   await bootDefaultWorkspace();
+  await bootDefaultAgentSkills();
 
   app
     .listen(port, async () => {
@@ -118,6 +136,7 @@ function catchSigTerms() {
 
 module.exports = {
   bootDefaultWorkspace,
+  bootDefaultAgentSkills,
   bootHTTP,
   bootSSL,
 };
