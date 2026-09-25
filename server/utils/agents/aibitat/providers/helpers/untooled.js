@@ -4,6 +4,9 @@ const { v4 } = require("uuid");
 const {
   extractReasoningContent,
 } = require("../../../../helpers/chat/responses");
+const {
+  parseBooleanEnv,
+} = require("../../../../helpers/parseBooleanEnv");
 
 // Useful inheritance class for a model which supports OpenAi schema for API requests
 // but does not have tool-calling or JSON output support.
@@ -58,14 +61,15 @@ ${JSON.stringify(def.parameters.properties, null, 4)}\n`;
    * This can lead to unexpected behavior if you want a model using Untooled to call a repeat action multiple times.
    * eg: Create 3 Jira tickets about x, y, and z. -> will skip y and z if you don't disable the cooldown.
    *
-   * You can disable this check by setting the `MCP_NO_COOLDOWN` flag to any value in the ENV.
+   * You can disable this check by setting the `MCP_NO_COOLDOWN` flag to
+   * "true" or "1" (strict boolean parsing) in the ENV.
    *
    * @param {{name: string, arguments: Object}} functionCall - The function call to check.
    * @param {Object[]} functions - The list of functions definitions to check against.
    * @return {boolean} - True if the function call is an MCP tool, false otherwise.
    */
   isMCPTool(functionCall = {}, functions = []) {
-    if (process.env.MCP_NO_COOLDOWN) return false;
+    if (parseBooleanEnv(process.env.MCP_NO_COOLDOWN)) return false;
 
     const foundFunc = functions.find(
       (def) => def?.name?.toLowerCase() === functionCall.name?.toLowerCase()

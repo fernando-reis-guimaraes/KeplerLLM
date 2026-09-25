@@ -42,13 +42,22 @@ describe("ToolReranker", () => {
       expect(ToolReranker.isEnabled()).toBe(true);
     });
 
-    it("returns false only for the exact string 'false'", () => {
+    it("returns false for the exact string 'false'", () => {
       process.env.AGENT_SKILL_RERANKER_ENABLED = "false";
       expect(ToolReranker.isEnabled()).toBe(false);
     });
 
-    it("treats 'False', 'FALSE', '0', and empty string as enabled", () => {
+    // KeplerLLM fork: explicitly supplied values use the shared strict
+    // boolean parser (only "true"/"1" enable). Unset still defaults to true.
+    it("treats 'False', 'FALSE', '0', and empty string as disabled", () => {
       for (const val of ["False", "FALSE", "0", "", " "]) {
+        process.env.AGENT_SKILL_RERANKER_ENABLED = val;
+        expect(ToolReranker.isEnabled()).toBe(false);
+      }
+    });
+
+    it("treats 'true', 'TRUE', '1', and padded values as enabled", () => {
+      for (const val of ["true", "TRUE", "1", " true ", " 1 "]) {
         process.env.AGENT_SKILL_RERANKER_ENABLED = val;
         expect(ToolReranker.isEnabled()).toBe(true);
       }

@@ -1,5 +1,8 @@
 const { v4 } = require("uuid");
 const prisma = require("../utils/prisma");
+const {
+  parseBooleanEnv,
+} = require("../utils/helpers/parseBooleanEnv");
 /**
  * Valid chat modes for embeds.
  * - chat: Chat mode will use the workspace's chat mode.
@@ -66,12 +69,15 @@ const EmbedConfig = {
       });
 
       // If the embed was created with no allowed-domains allowlist
-      // and the EMBED_REQUIRE_ALLOWLIST environment variable is not set, warn the user
-      // since this would mean the embed will accept requests from ANY origin.
-      // If the ENV is set, then it would just mean the embed wont respond to requests from ANY origin.
+      // and the EMBED_REQUIRE_ALLOWLIST environment variable does not resolve
+      // to true, warn the user since this would mean the embed will accept
+      // requests from ANY origin.
+      // If the ENV resolves to true, then it would just mean the embed wont respond to requests from ANY origin.
+      // KeplerLLM fork: strict boolean parsing. Only "true"/"1" require an
+      // allowlist; "false", "0", "", unset, or any other value warn instead.
       if (
         !embed.allowlist_domains &&
-        !("EMBED_REQUIRE_ALLOWLIST" in process.env)
+        !parseBooleanEnv(process.env.EMBED_REQUIRE_ALLOWLIST)
       ) {
         console.warn(
           `[EmbedConfig] Embed ${embed.uuid} was created with no allowed-domains allowlist; it will accept requests from ANY origin. Set EMBED_REQUIRE_ALLOWLIST="true" to require an allowlist before an embed will respond.`

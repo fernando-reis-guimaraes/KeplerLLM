@@ -630,8 +630,10 @@ const SystemSettings = {
       // --------------------------------------------------------
       // Simple SSO Settings
       // --------------------------------------------------------
-      SimpleSSOEnabled: "SIMPLE_SSO_ENABLED" in process.env || false,
-      SimpleSSONoLogin: "SIMPLE_SSO_NO_LOGIN" in process.env || false,
+      // KeplerLLM fork: strict boolean parsing. Only "true"/"1" enable;
+      // "false", "0", "", or any other value safely resolve to false.
+      SimpleSSOEnabled: parseBooleanEnv(process.env.SIMPLE_SSO_ENABLED),
+      SimpleSSONoLogin: parseBooleanEnv(process.env.SIMPLE_SSO_NO_LOGIN),
       SimpleSSONoLoginRedirect: this.simpleSSO.noLoginRedirect(),
 
       // --------------------------------------------------------
@@ -1135,8 +1137,10 @@ const SystemSettings = {
      * @returns {string | null}
      */
     noLoginRedirect: () => {
-      if (!("SIMPLE_SSO_ENABLED" in process.env)) return null; // if simple SSO is not enabled, return null
-      if (!("SIMPLE_SSO_NO_LOGIN" in process.env)) return null; // if the no login config is not set, return null
+      // KeplerLLM fork: the SSO boolean flags use strict parsing; the
+      // redirect URL itself remains a presence check ("is a URL configured?").
+      if (!parseBooleanEnv(process.env.SIMPLE_SSO_ENABLED)) return null; // if simple SSO is not enabled, return null
+      if (!parseBooleanEnv(process.env.SIMPLE_SSO_NO_LOGIN)) return null; // if the no login config is not set, return null
       if (!("SIMPLE_SSO_NO_LOGIN_REDIRECT" in process.env)) return null; // if the no login redirect is not set, return null
 
       try {

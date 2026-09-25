@@ -2,6 +2,9 @@ const { TokenManager } = require("../../../helpers/tiktoken");
 const {
   NativeEmbeddingReranker,
 } = require("../../../EmbeddingRerankers/native");
+const {
+  parseBooleanEnv,
+} = require("../../../helpers/parseBooleanEnv");
 
 const MAX_TEXT_LENGTH = 1000;
 
@@ -26,13 +29,17 @@ class ToolReranker {
   }
 
   /**
-   * Check if tool reranking is enabled via environment variable
+   * Check if tool reranking is enabled via environment variable.
+   * KeplerLLM fork: unset preserves the existing default (enabled); an
+   * explicitly supplied value uses strict boolean parsing, so only
+   * "true"/"1" keep it enabled while "false", "0", "", or any other value
+   * disable it.
    * @returns {boolean}
    */
   static isEnabled() {
-    if (!("AGENT_SKILL_RERANKER_ENABLED" in process.env)) return true;
-    if (process.env.AGENT_SKILL_RERANKER_ENABLED === "false") return false;
-    return true;
+    const raw = process.env.AGENT_SKILL_RERANKER_ENABLED;
+    if (raw == null) return true;
+    return parseBooleanEnv(raw);
   }
 
   /**

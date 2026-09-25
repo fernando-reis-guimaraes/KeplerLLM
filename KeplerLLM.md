@@ -660,6 +660,40 @@ KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON=true
 - Disabling backend capabilities, upload ingestion, agent execution, or MCP tools.
 - Hiding any other UI element.
 
+### Requirement 15 - Strict boolean environment-variable parsing
+
+#### Objective
+
+Resolve every environment variable whose value genuinely represents a boolean through one shared strict parser, so mere presence of a variable (including values such as `false`, `0`, or empty, common on platforms like CapRover) never enables a feature.
+
+#### Observable behavior
+
+- The shared server-side parser (`server/utils/helpers/parseBooleanEnv.js`, also used by the collector entrypoint) resolves `true` only for `true`/`"true"`/`1`/`"1"` (strings trimmed and case-insensitive). Everything else (`false`, `"false"`, `0`, `"0"`, `""`, `"null"`, `"undefined"`, `"yes"`, `"no"`, `"on"`, `"off"`, arbitrary values, unset) resolves to `false` without throwing.
+- The following boolean flags use the shared parser:
+  - `KEPLERLLM_HIDE_SETTINGS_BUTTONS`, `KEPLERLLM_HIDE_TOOLS_BUTTON`, `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON`, `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON`, `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON`
+  - `DISABLE_VIEW_CHAT_HISTORY`, `WORKSPACE_DELETION_PROTECTION`
+  - `SIMPLE_SSO_ENABLED`, `SIMPLE_SSO_NO_LOGIN`
+  - `EMBED_REQUIRE_ALLOWLIST`
+  - `ENABLE_HTTP_LOGGER`, `ENABLE_HTTP_LOGGER_TIMESTAMPS`, `ENABLE_HTTPS` (parsed once; every boot check in `server/index.js` shares the result)
+  - `AWS_BEDROCK_STREAMING_DISABLED`, `GENERIC_OPENAI_STREAMING_DISABLED`, `GENERIC_OPEN_AI_REPORT_USAGE`
+  - `MCP_NO_COOLDOWN`
+  - `DISABLE_SWAGGER_DOCS`, `DISABLE_TELEMETRY`
+  - `COLLECTOR_ALLOW_ANY_IP` (parsed server-side; the collector already coerces the forwarded boolean correctly)
+  - `AGENT_SKILL_RERANKER_ENABLED`, preserving its existing default: unset stays enabled, while an explicitly supplied value uses the strict parser (`"true"`/`"1"` keep it enabled; `"false"`, `"0"`, empty, or any other value disable it).
+- Operational convention for every flag above: `true`/`1` enable, `false`/`0`/empty/unset/any other value disable.
+
+#### Rules and limits
+
+- Credential/key presence checks (for example `!!process.env.OPEN_AI_KEY`) keep their existing meaning ("is a credential configured?") and do not use the parser.
+- Non-boolean domains are unchanged: enums (`LLM_PROVIDER`, `GENERIC_OPEN_AI_API_MODE`, `COMMUNITY_HUB_BUNDLE_DOWNLOADS_ENABLED` with its `allow_all` value), URLs, numerics (ports, timeouts, token limits, `AGENT_SKILL_RERANKER_TOP_N`), comma-separated lists (`PROVIDER_DISABLE_NATIVE_TOOL_CALLING`, `AGENT_AUTO_APPROVED_SKILLS`), database values, request bodies, and frontend build-time variables.
+- The `DisableTelemetry` settings/API string contract is unchanged; only the server-side enforcement points use the parser.
+- Relevant implementation lives in `server/utils/helpers/parseBooleanEnv.js` plus the call sites listed above. No database migration, no generated `frontend/dist` edits, and no new runtime-config mechanism were introduced.
+
+#### Out of scope
+
+- Changing the `COMMUNITY_HUB_BUNDLE_DOWNLOADS_ENABLED` three-state enum semantics.
+- Changing routes, authorization, APIs, capabilities, or UI behavior beyond the corrected boolean configuration semantics.
+
 ## Appendix - Operational reference
 
 This appendix records only the runtime and publishing facts needed to operate the fork. It does not describe implementation.

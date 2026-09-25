@@ -14,6 +14,9 @@ const { toValidNumber } = require("../../http");
 const { getAnythingLLMUserAgent } = require("../../../endpoints/utils");
 const { attachmentToContentBlock } = require("../../helpers/attachments");
 const {
+  parseBooleanEnv,
+} = require("../../helpers/parseBooleanEnv");
+const {
   RESPONSES_MODE,
   resolveApiMode,
   chatMessagesToResponsesInput,
@@ -120,7 +123,9 @@ class GenericOpenAiLLM {
   }
 
   streamingEnabled() {
-    if (process.env.GENERIC_OPENAI_STREAMING_DISABLED === "true") return false;
+    // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable streaming.
+    if (parseBooleanEnv(process.env.GENERIC_OPENAI_STREAMING_DISABLED))
+      return false;
     return "streamGetChatCompletion" in this;
   }
 
@@ -240,8 +245,8 @@ class GenericOpenAiLLM {
    * @returns {Object}
    */
   #includeStreamOptionsUsage() {
-    if (!("GENERIC_OPEN_AI_REPORT_USAGE" in process.env)) return {};
-    if (process.env.GENERIC_OPEN_AI_REPORT_USAGE !== "true") return {};
+    // KeplerLLM fork: strict boolean parsing. Only "true"/"1" include usage.
+    if (!parseBooleanEnv(process.env.GENERIC_OPEN_AI_REPORT_USAGE)) return {};
     return {
       stream_options: {
         include_usage: true,

@@ -1,12 +1,16 @@
 const { getGitVersion } = require("../../endpoints/utils");
 const { Telemetry } = require("../../models/telemetry");
+const {
+  parseBooleanEnv,
+} = require("../helpers/parseBooleanEnv");
 
 // Telemetry is anonymized and your data is never read. This can be disabled by setting
 // DISABLE_TELEMETRY=true in the `.env` of however you setup. Telemetry helps us determine use
 // of how AnythingLLM is used and how to improve this product!
 // You can see all Telemetry events by ctrl+f `Telemetry.sendTelemetry` calls to verify this claim.
 async function setupTelemetry() {
-  if (process.env.DISABLE_TELEMETRY === "true") {
+  // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable telemetry.
+  if (parseBooleanEnv(process.env.DISABLE_TELEMETRY)) {
     console.log(
       `\x1b[31m[TELEMETRY DISABLED]\x1b[0m Telemetry is marked as disabled - no events will send. Telemetry helps Mintplex Labs Inc improve AnythingLLM.`
     );

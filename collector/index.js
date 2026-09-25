@@ -17,6 +17,11 @@ const { processRawText } = require("./processRawText");
 const { convertAudioToWav } = require("./convertAudioToWav");
 const { verifyPayloadIntegrity } = require("./middleware/verifyIntegrity");
 const { httpLogger } = require("./middleware/httpLogger");
+// KeplerLLM fork: shared strict boolean env parser (single canonical
+// implementation; the repo layout keeps ../server alongside ./collector).
+const {
+  parseBooleanEnv,
+} = require("../server/utils/helpers/parseBooleanEnv");
 const app = express();
 const FILE_LIMIT = "3GB";
 const COLLECTOR_PORT = getCollectorPort();
@@ -24,11 +29,13 @@ const COLLECTOR_PORT = getCollectorPort();
 // Only log HTTP requests in development mode and if the ENABLE_HTTP_LOGGER environment variable is set to true
 if (
   process.env.NODE_ENV === "development" &&
-  !!process.env.ENABLE_HTTP_LOGGER
+  parseBooleanEnv(process.env.ENABLE_HTTP_LOGGER)
 ) {
   app.use(
     httpLogger({
-      enableTimestamps: !!process.env.ENABLE_HTTP_LOGGER_TIMESTAMPS,
+      enableTimestamps: parseBooleanEnv(
+        process.env.ENABLE_HTTP_LOGGER_TIMESTAMPS
+      ),
     })
   );
 }
