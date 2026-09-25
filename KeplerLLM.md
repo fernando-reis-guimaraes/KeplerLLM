@@ -4,7 +4,7 @@
 
 KeplerLLM is a fork of AnythingLLM. It preserves upstream behavior except for the fork changes defined below.
 
-The fork adds persistent UI configuration with a single storage volume, a product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging with human approval, dynamic SQLite/PostgreSQL backend selection from a single Docker image, an optional OpenAI-compatible Responses API mode for the Generic OpenAI provider, remote MCP server configuration through environment variables, default workspace bootstrap from environment variables, default Agent Skills bootstrap from an environment variable, and optional UI-only hiding of Settings entry buttons.
+The fork adds persistent UI configuration with a single storage volume, a product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging with human approval, dynamic SQLite/PostgreSQL backend selection from a single Docker image, an optional OpenAI-compatible Responses API mode for the Generic OpenAI provider, remote MCP server configuration through environment variables, default workspace bootstrap from environment variables, default Agent Skills bootstrap from an environment variable, an optional UI-only hiding of Settings entry buttons, sidebar thread internationalization, and a runtime-configurable default UI language.
 
 ## Fork changes
 
@@ -573,6 +573,43 @@ Translate the workspace sidebar thread labels that upstream AnythingLLM hardcode
 - Changing the server-side default thread name per locale.
 - Migrating or rewriting existing thread rows.
 
+### Requirement 13 - Runtime-configurable default UI language
+
+#### Objective
+
+Select the initial UI language from a server-side runtime environment variable, so container platforms that supply environment variables at runtime (including CapRover) work without rebuilding the frontend.
+
+#### Observable behavior
+
+- When `DEFAULT_UI_LANGUAGE` is unset and no explicit KeplerLLM language preference exists, the UI falls back to browser language detection with `en` fallback. Legacy `i18nextLng` values are intentionally not treated as explicit preferences because they may have been written automatically by i18next, so this differs from upstream handling of the generic cached language.
+- For a browser/session with no explicit KeplerLLM language preference:
+  - `DEFAULT_UI_LANGUAGE=pt` starts the UI in Brazilian Portuguese.
+  - `DEFAULT_UI_LANGUAGE=en` starts the UI in English.
+- `pt` maps to the existing Brazilian Portuguese translation (`frontend/src/locales/pt_BR/common.js` registered under the `pt` locale key). The `pt` locale key is unchanged.
+- Language selection precedence is:
+  1. Explicit KeplerLLM user language preference.
+  2. `DEFAULT_UI_LANGUAGE`.
+  3. Browser-detected language.
+  4. `en`.
+- `DEFAULT_UI_LANGUAGE` is a default, not a forced language. A manual change through the existing UI is stored separately and continues to override the environment default on subsequent visits.
+- `i18nextLng` is not treated as proof of an explicit user selection: i18next automatically caches the detected/default language there, so it cannot distinguish an explicit choice from automatic detection. KeplerLLM stores an explicit choice separately under `keplerllmExplicitUILanguage`, written only when the user changes the language through the UI. `DEFAULT_UI_LANGUAGE` therefore also applies to existing users who never manually selected a language.
+- An invalid or unsupported value is ignored safely and the existing fallback behavior is preserved.
+
+#### Rules and limits
+
+- Runtime server environment variable only. There is no `VITE_*` build-time variable because the Docker image is built before CapRover runtime environment variables are supplied.
+- The frontend receives the value from the running server through the existing `window.__KEPLERLLM_CONFIG__` bootstrap rendered per request by `MetaGenerator` (`server/utils/boot/keplerllmConfig.js`, `server/utils/boot/MetaGenerator.js`). No new runtime mechanism or dependency is introduced, and no unrelated or sensitive environment variables are exposed to the frontend.
+- Validation happens against the language keys actually exported by `frontend/src/locales/resources.js`. No duplicated hardcoded language list is maintained. Input is normalized (trim, lowercase, `_` to `-`) with base-language fallback (for example `pt-BR` resolves to `pt`), without breaking the existing locale naming conventions.
+- The explicit preference is never migrated from `i18nextLng`, since a cached `i18nextLng` value may come from automatic detection. Absence of the explicit-preference key means "no explicit user preference". The existing `i18nextLng` cache keeps being written by the detector and is left otherwise untouched.
+- Relevant implementation lives in `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/defaultUILanguage.js`, `frontend/src/i18n.js`, and `frontend/src/hooks/useLanguageOptions.js` (manual selection persistence only). No new UI is introduced.
+- Single-user and multi-user operation are unchanged. Existing translations are preserved. When the variable is unset and no explicit preference exists, browser language detection is used; only the ambiguous legacy `i18nextLng` cache is excluded from precedence.
+
+#### Out of scope
+
+- Forcing a language regardless of explicit user choice.
+- Renaming the existing `pt` locale key.
+- Persisting the default in the database or adding a UI toggle.
+
 ## Appendix - Operational reference
 
 This appendix records only the runtime and publishing facts needed to operate the fork. It does not describe implementation.
@@ -604,6 +641,7 @@ The fork tracks a stable AnythingLLM baseline. The current baseline is:
 | `DEFAULT_WORKSPACE_HISTORY`    | unset                 | Bootstrap `openAiHistory` as an integer `>= 0`. Unset leaves the upstream default.             |
 | `DEFAULT_AGENT_SKILLS`         | unset                 | Bootstrap opt-in Agent Skills as a comma-separated list. Unset preserves upstream behavior. Empty string enables none. Existing DB configuration is never overwritten. |
 | `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | When present with any value, hide Settings entry buttons in the UI only. Direct URLs still work. |
+| `DEFAULT_UI_LANGUAGE`          | unset                 | Default UI language used only when no explicit KeplerLLM preference exists. Must match a supported locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects Brazilian Portuguese. Unset falls back to browser detection with `en` fallback; legacy `i18nextLng` is ignored for precedence and invalid values are ignored. |
 
 The deployment mounts only:
 
@@ -705,6 +743,14 @@ Optionally hide Settings entry buttons in the UI only (direct Settings URLs rema
 ```text
 KEPLERLLM_HIDE_SETTINGS_BUTTONS=1
 ```
+
+Optionally set the default UI language (default only; an explicit user choice still wins):
+
+```text
+DEFAULT_UI_LANGUAGE=pt
+```
+
+Used only when no explicit KeplerLLM language preference exists (stored separately in `keplerllmExplicitUILanguage` when the user changes the language through the UI). Must match a supported KeplerLLM locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects the existing Brazilian Portuguese translation. `i18nextLng` alone is not treated as an explicit choice, so the default also applies to existing users who never manually selected a language. When unset and no explicit preference exists, the UI falls back to browser language detection with `en` fallback; invalid values are ignored safely. The value is read at container runtime through `window.__KEPLERLLM_CONFIG__`, so no frontend rebuild is needed on CapRover.
 
 Keep the named volume:
 
