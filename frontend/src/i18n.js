@@ -4,17 +4,27 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import { defaultNS, resources } from "./locales/resources";
 import {
   KEPLERLLM_DEFAULT_DETECTOR_NAME,
+  KEPLERLLM_EXPLICIT_DETECTOR_NAME,
   createKeplerllmDefaultDetector,
+  createKeplerllmExplicitDetector,
 } from "./utils/defaultUILanguage";
 
 // Runtime default UI language (DEFAULT_UI_LANGUAGE) is exposed by the server
 // per request via window.__KEPLERLLM_CONFIG__.defaultUILanguage, so container
 // runtime values (including CapRover) work without a frontend rebuild.
-// Detection order preserves explicit selection over the server default:
-// querystring/cookie/localStorage/sessionStorage > keplerllmDefault (env) >
-// browser (navigator/htmlTag) > fallback `en`. A manual UI choice is cached
-// in localStorage by the detector and therefore wins on subsequent visits.
+// Detection order implements: explicit KeplerLLM preference >
+// DEFAULT_UI_LANGUAGE > browser (navigator/htmlTag) > fallback `en`.
+// The generic `localStorage`/`sessionStorage` (`i18nextLng`) detectors are
+// intentionally not consulted: i18next caches the auto-detected/default
+// language there on init, so `i18nextLng` cannot prove an explicit user
+// choice and must not block a newly configured DEFAULT_UI_LANGUAGE. Only a
+// manual UI selection writes the explicit KeplerLLM preference, which then
+// wins on subsequent visits. `caches` still targets `localStorage` so the
+// existing `i18nextLng` cache keeps being written, not deleted.
 const languageDetector = new LanguageDetector();
+languageDetector.addDetector(
+  createKeplerllmExplicitDetector(Object.keys(resources))
+);
 languageDetector.addDetector(
   createKeplerllmDefaultDetector(Object.keys(resources))
 );
@@ -36,8 +46,7 @@ i18next
       order: [
         "querystring",
         "cookie",
-        "localStorage",
-        "sessionStorage",
+        KEPLERLLM_EXPLICIT_DETECTOR_NAME,
         KEPLERLLM_DEFAULT_DETECTOR_NAME,
         "navigator",
         "htmlTag",

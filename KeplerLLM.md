@@ -582,16 +582,17 @@ Select the initial UI language from a server-side runtime environment variable, 
 #### Observable behavior
 
 - When `DEFAULT_UI_LANGUAGE` is unset, behavior is exactly upstream AnythingLLM behavior (browser language detection with `en` fallback).
-- For a fresh browser/session with no previously stored language preference:
+- For a browser/session with no explicit KeplerLLM language preference:
   - `DEFAULT_UI_LANGUAGE=pt` starts the UI in Brazilian Portuguese.
   - `DEFAULT_UI_LANGUAGE=en` starts the UI in English.
 - `pt` maps to the existing Brazilian Portuguese translation (`frontend/src/locales/pt_BR/common.js` registered under the `pt` locale key). The `pt` locale key is unchanged.
 - Language selection precedence is:
-  1. Explicit language previously selected by the user.
+  1. Explicit KeplerLLM user language preference.
   2. `DEFAULT_UI_LANGUAGE`.
   3. Browser-detected language.
   4. `en`.
-- `DEFAULT_UI_LANGUAGE` is a default, not a forced language. A manual change through the existing UI continues to override the environment default on subsequent visits.
+- `DEFAULT_UI_LANGUAGE` is a default, not a forced language. A manual change through the existing UI is stored separately and continues to override the environment default on subsequent visits.
+- `i18nextLng` is not treated as proof of an explicit user selection: i18next automatically caches the detected/default language there, so it cannot distinguish an explicit choice from automatic detection. KeplerLLM stores an explicit choice separately under `keplerllmExplicitUILanguage`, written only when the user changes the language through the UI. `DEFAULT_UI_LANGUAGE` therefore also applies to existing users who never manually selected a language.
 - An invalid or unsupported value is ignored safely and the existing fallback behavior is preserved.
 
 #### Rules and limits
@@ -599,7 +600,8 @@ Select the initial UI language from a server-side runtime environment variable, 
 - Runtime server environment variable only. There is no `VITE_*` build-time variable because the Docker image is built before CapRover runtime environment variables are supplied.
 - The frontend receives the value from the running server through the existing `window.__KEPLERLLM_CONFIG__` bootstrap rendered per request by `MetaGenerator` (`server/utils/boot/keplerllmConfig.js`, `server/utils/boot/MetaGenerator.js`). No new runtime mechanism or dependency is introduced, and no unrelated or sensitive environment variables are exposed to the frontend.
 - Validation happens against the language keys actually exported by `frontend/src/locales/resources.js`. No duplicated hardcoded language list is maintained. Input is normalized (trim, lowercase, `_` to `-`) with base-language fallback (for example `pt-BR` resolves to `pt`), without breaking the existing locale naming conventions.
-- Relevant implementation lives in `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/defaultUILanguage.js`, and `frontend/src/i18n.js`. Manual selection and persistence behavior in `frontend/src/hooks/useLanguageOptions.js` is unchanged.
+- The explicit preference is never migrated from `i18nextLng`, since a cached `i18nextLng` value may come from automatic detection. Absence of the explicit-preference key means "no explicit user preference". The existing `i18nextLng` cache keeps being written by the detector and is left otherwise untouched.
+- Relevant implementation lives in `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/defaultUILanguage.js`, `frontend/src/i18n.js`, and `frontend/src/hooks/useLanguageOptions.js` (manual selection persistence only). No new UI is introduced.
 - Single-user and multi-user operation are unchanged. Existing translations and browser language detection are preserved when the variable is unset.
 
 #### Out of scope
@@ -748,7 +750,7 @@ Optionally set the default UI language (default only; an explicit user choice st
 DEFAULT_UI_LANGUAGE=pt
 ```
 
-Used only when the user has not explicitly selected a language. Must match a supported KeplerLLM locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects the existing Brazilian Portuguese translation. When unset, browser language detection is preserved; invalid values are ignored safely. The value is read at container runtime through `window.__KEPLERLLM_CONFIG__`, so no frontend rebuild is needed on CapRover.
+Used only when the user has not explicitly selected a language through the UI. Must match a supported KeplerLLM locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects the existing Brazilian Portuguese translation. `i18nextLng` alone is not treated as an explicit choice, so the default also applies to existing users who never manually selected a language. When unset, browser language detection is preserved; invalid values are ignored safely. The value is read at container runtime through `window.__KEPLERLLM_CONFIG__`, so no frontend rebuild is needed on CapRover.
 
 Keep the named volume:
 

@@ -1,24 +1,32 @@
 // Runtime default UI language helpers.
 //
-// Precedence (highest first):
-//   1. Explicit language previously selected by the user (localStorage `i18nextLng`)
+// Effective precedence (highest first):
+//   1. Explicit KeplerLLM user language preference
+//      (localStorage `keplerllmExplicitUILanguage`, written only when the user
+//      changes the language through the KeplerLLM UI)
 //   2. DEFAULT_UI_LANGUAGE from the server runtime config
 //      (`window.__KEPLERLLM_CONFIG__.defaultUILanguage`)
 //   3. Browser-detected language
 //   4. `en` (i18next `fallbackLng`)
 //
-// DEFAULT_UI_LANGUAGE is a default, not a forced language. A manual choice
-// made through the UI is cached by i18next-browser-languagedetector in
-// localStorage and wins over the server default on subsequent visits because
-// the `localStorage` detector runs before the `keplerllmDefault` detector.
+// `i18nextLng` is intentionally NOT treated as proof of an explicit user
+// selection: i18next caches the language selected during initialization
+// (browser detection or the runtime default) into `i18nextLng` via
+// `languageDetector.cacheUserLanguage(...)`, so a stored `i18nextLng` value
+// cannot distinguish an explicit choice from automatic detection. Existing
+// users who only have an automatically cached `i18nextLng` and never manually
+// selected a language therefore still receive a newly configured
+// DEFAULT_UI_LANGUAGE. The absence of the explicit-preference key means "no
+// explicit user preference"; `i18nextLng` is never migrated into it.
 //
 // Validation always happens against the locale keys actually exported by
 // `frontend/src/locales/resources.js`. No duplicated hardcoded language list
 // is maintained here. `pt` selects the existing Brazilian Portuguese
 // translation (`frontend/src/locales/pt_BR/common.js` registered as `pt`).
 
+export const KEPLERLLM_EXPLICIT_DETECTOR_NAME = "keplerllmExplicit";
 export const KEPLERLLM_DEFAULT_DETECTOR_NAME = "keplerllmDefault";
-export const STORED_LANGUAGE_KEY = "i18nextLng";
+export const EXPLICIT_LANGUAGE_KEY = "keplerllmExplicitUILanguage";
 export const FALLBACK_LANGUAGE = "en";
 
 // Trim, lowercase, and normalize `_` to `-` so `pt`, `PT`, `pt-BR`, and
@@ -58,21 +66,48 @@ export function resolveSupportedLanguage(raw, supportedLanguages = []) {
   return matchSupportedLanguage(normalizeLanguageTag(raw), supportedLanguages);
 }
 
-// Read an explicit user selection previously stored by
-// i18next-browser-languagedetector. Returns the supported key or null.
-export function readStoredLanguage(supportedLanguages = [], storage = null) {
+// Resolve the default browser storage, or null when unavailable.
+function defaultStorage() {
   try {
-    const store =
-      storage ??
-      (typeof globalThis !== "undefined" && globalThis.localStorage
-        ? globalThis.localStorage
-        : typeof window !== "undefined" && window.localStorage
-          ? window.localStorage
-          : null);
-    const raw = store?.getItem?.(STORED_LANGUAGE_KEY);
+    if (typeof globalThis !== "undefined" && globalThis.localStorage)
+      return globalThis.localStorage;
+    if (typeof window !== "undefined" && window.localStorage)
+      return window.localStorage;
+  } catch {
+    // Storage access can throw (e.g. blocked cookies); treat as unavailable.
+  }
+  return null;
+}
+
+// Read the explicit KeplerLLM user language preference. Returns the supported
+// key or null when absent or invalid. An invalid persisted value is ignored
+// safely so resolution can continue with the runtime default.
+export function readExplicitLanguage(supportedLanguages = [], storage = null) {
+  try {
+    const store = storage ?? defaultStorage();
+    const raw = store?.getItem?.(EXPLICIT_LANGUAGE_KEY);
     return resolveSupportedLanguage(raw, supportedLanguages);
   } catch {
     return null;
+  }
+}
+
+// Persist a manually selected language as the explicit KeplerLLM preference.
+// Call only when the user actually changes the language through the UI.
+// Returns true when a validated language was stored, false otherwise.
+export function writeExplicitLanguage(
+  raw,
+  supportedLanguages = [],
+  storage = null
+) {
+  try {
+    const validated = resolveSupportedLanguage(raw, supportedLanguages);
+    if (!validated) return false;
+    const store = storage ?? defaultStorage();
+    store?.setItem?.(EXPLICIT_LANGUAGE_KEY, validated);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -102,19 +137,22 @@ export function readRuntimeDefaultLanguage(
 
 // Pure precedence resolver used by tests and documentation. All inputs are raw
 // values; each is validated against `supportedLanguages`.
-// - storedLanguage: explicit user selection (wins)
+// - explicitLanguage: explicit KeplerLLM user preference (wins)
 // - runtimeDefault: DEFAULT_UI_LANGUAGE (default only)
 // - detectedLanguage: browser-detected language
 // - fallbackLng: final fallback (`en`)
 export function resolveInitialLanguage({
-  storedLanguage = null,
+  explicitLanguage = null,
   runtimeDefault = null,
   detectedLanguage = null,
   fallbackLng = FALLBACK_LANGUAGE,
   supportedLanguages = [],
 } = {}) {
-  const stored = resolveSupportedLanguage(storedLanguage, supportedLanguages);
-  if (stored) return stored;
+  const explicit = resolveSupportedLanguage(
+    explicitLanguage,
+    supportedLanguages
+  );
+  if (explicit) return explicit;
   const runtime = resolveSupportedLanguage(runtimeDefault, supportedLanguages);
   if (runtime) return runtime;
   const detected = resolveSupportedLanguage(
@@ -126,9 +164,48 @@ export function resolveInitialLanguage({
   return fallback ?? FALLBACK_LANGUAGE;
 }
 
-// Custom i18next-browser-languagedetector entry. Positioned after the stored
-// detectors (`localStorage`, `sessionStorage`) and before `navigator` so the
-// order is: explicit selection > DEFAULT_UI_LANGUAGE > browser > fallback.
+// Storage-level resolver mirroring the runtime detector chain. Reads the
+// explicit preference and the runtime default from the provided state and
+// validates the browser language, implementing:
+// explicit preference > DEFAULT_UI_LANGUAGE > browser > `en`.
+// The generic `i18nextLng` cache is deliberately ignored: it may hold an
+// automatically detected/default language rather than an explicit choice.
+export function resolveEffectiveLanguage({
+  storage = null,
+  runtimeConfig = null,
+  browserLanguage = null,
+  fallbackLng = FALLBACK_LANGUAGE,
+  supportedLanguages = [],
+} = {}) {
+  const explicit = readExplicitLanguage(supportedLanguages, storage);
+  if (explicit) return explicit;
+  const runtime = readRuntimeDefaultLanguage(supportedLanguages, runtimeConfig);
+  if (runtime) return runtime;
+  const detected = resolveSupportedLanguage(
+    browserLanguage,
+    supportedLanguages
+  );
+  if (detected) return detected;
+  const fallback = resolveSupportedLanguage(fallbackLng, supportedLanguages);
+  return fallback ?? FALLBACK_LANGUAGE;
+}
+
+// Custom i18next-browser-languagedetector entry for the explicit KeplerLLM
+// preference. Evaluated independently from the generic `localStorage`
+// (`i18nextLng`) detector, which must not take precedence over the runtime
+// default.
+export function createKeplerllmExplicitDetector(supportedLanguages = []) {
+  return {
+    name: KEPLERLLM_EXPLICIT_DETECTOR_NAME,
+    lookup() {
+      return readExplicitLanguage(supportedLanguages) ?? undefined;
+    },
+  };
+}
+
+// Custom i18next-browser-languagedetector entry for DEFAULT_UI_LANGUAGE.
+// Positioned after the explicit preference and before the browser detectors
+// so the order is: explicit preference > DEFAULT_UI_LANGUAGE > browser.
 export function createKeplerllmDefaultDetector(supportedLanguages = []) {
   return {
     name: KEPLERLLM_DEFAULT_DETECTOR_NAME,
