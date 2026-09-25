@@ -1,5 +1,8 @@
 const { EncryptionManager } = require("../EncryptionManager");
 const { Agent } = require("undici");
+const {
+  parseBooleanEnv,
+} = require("../helpers/parseBooleanEnv");
 
 /**
  * @typedef {Object} CollectorOptions
@@ -10,7 +13,7 @@ const { Agent } = require("undici");
  * @property {string} WhisperGenericOpenAiApiKey - The API key used by the generic (OpenAI compatible) Whisper provider.
  * @property {string} WhisperGenericOpenAiModel - The transcription model used by the generic (OpenAI compatible) Whisper provider.
  * @property {Object} ocr - The OCR options
- * @property {{allowAnyIp: "true"|null|undefined}} runtimeSettings - The runtime settings that are passed to the collector. Persisted across requests.
+ * @property {{allowAnyIp: boolean}} runtimeSettings - The runtime settings that are passed to the collector. Persisted across requests.
  */
 
 // When running locally will occupy the 0.0.0.0 hostname space but when deployed inside
@@ -77,7 +80,11 @@ class CollectorApi {
         langList: process.env.TARGET_OCR_LANG || "eng",
       },
       runtimeSettings: {
-        allowAnyIp: process.env.COLLECTOR_ALLOW_ANY_IP ?? "false",
+        // KeplerLLM fork: strict boolean parsing. Only "true"/"1" allow any
+        // IP; "false", "0", "", unset, or any other value keep the SSRF guard.
+        // The collector coerces via String(value) === "true", which accepts
+        // both the boolean and its string form.
+        allowAnyIp: parseBooleanEnv(process.env.COLLECTOR_ALLOW_ANY_IP),
         browserLaunchArgs: process.env.ANYTHINGLLM_CHROMIUM_ARGS ?? [],
       },
     };

@@ -52,6 +52,13 @@ const {
 } = require("./endpoints/utils/googleAgentSkillEndpoints");
 const { memoryEndpoints } = require("./endpoints/memory");
 const { httpLogger } = require("./middleware/httpLogger");
+const {
+  parseBooleanEnv,
+} = require("./utils/helpers/parseBooleanEnv");
+// KeplerLLM fork: single strict parsing of the boolean ENABLE_HTTPS flag so
+// every check in this file resolves identically. Only "true"/"1" enable
+// HTTPS; "false", "0", "", unset, or any other value boot HTTP.
+const httpsEnabled = parseBooleanEnv(process.env.ENABLE_HTTPS);
 const app = express();
 const apiRouter = express.Router();
 const FILE_LIMIT = "3GB";
@@ -59,11 +66,13 @@ const FILE_LIMIT = "3GB";
 // Only log HTTP requests in development mode and if the ENABLE_HTTP_LOGGER environment variable is set to true
 if (
   process.env.NODE_ENV === "development" &&
-  !!process.env.ENABLE_HTTP_LOGGER
+  parseBooleanEnv(process.env.ENABLE_HTTP_LOGGER)
 ) {
   app.use(
     httpLogger({
-      enableTimestamps: !!process.env.ENABLE_HTTP_LOGGER_TIMESTAMPS,
+      enableTimestamps: parseBooleanEnv(
+        process.env.ENABLE_HTTP_LOGGER_TIMESTAMPS
+      ),
     })
   );
 }
@@ -77,7 +86,7 @@ app.use(
   })
 );
 
-if (!!process.env.ENABLE_HTTPS) {
+if (httpsEnabled) {
   bootSSL(app, process.env.SERVER_PORT || 3001);
 } else {
   require("@mintplex-labs/express-ws").default(app); // load WebSockets in non-SSL mode.
@@ -182,4 +191,4 @@ app.all("*", function (_, response) {
 
 // In non-https mode we need to boot at the end since the server has not yet
 // started and is `.listen`ing.
-if (!process.env.ENABLE_HTTPS) bootHTTP(app, process.env.SERVER_PORT || 3001);
+if (!httpsEnabled) bootHTTP(app, process.env.SERVER_PORT || 3001);

@@ -1,5 +1,8 @@
 const { v4 } = require("uuid");
 const { SystemSettings } = require("./systemSettings");
+const {
+  parseBooleanEnv,
+} = require("../utils/helpers/parseBooleanEnv");
 
 // Map of events and last sent time to check if the event is on cooldown
 // This will be cleared on server restart - but that is fine since it is mostly to just
@@ -47,7 +50,12 @@ const Telemetry = {
   },
 
   client: function () {
-    if (process.env.DISABLE_TELEMETRY === "true" || this.isDev()) return null;
+    // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable telemetry.
+    if (
+      parseBooleanEnv(process.env.DISABLE_TELEMETRY) ||
+      this.isDev()
+    )
+      return null;
     const { PostHog } = require("posthog-node");
     return new PostHog(this.pubkey);
   },

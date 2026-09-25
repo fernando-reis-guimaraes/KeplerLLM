@@ -1,3 +1,7 @@
+const {
+  parseBooleanEnv,
+} = require("../helpers/parseBooleanEnv");
+
 const DEFAULT_MODEL_DISPLAY_NAME = "Kepler AI";
 
 // KeplerLLM fork: product label shown in the workspace model picker.
@@ -32,40 +36,31 @@ function resolveDefaultUILanguage(env = process.env) {
   return normalizeDefaultUILanguageTag(env?.DEFAULT_UI_LANGUAGE);
 }
 
-// KeplerLLM fork: optional UI-only visibility controls. Presence semantics
-// match KEPLERLLM_HIDE_SETTINGS_BUTTONS, DISABLE_VIEW_CHAT_HISTORY and
-// WORKSPACE_DELETION_PROTECTION: absent means normal behavior, present with
-// any value (including "false" or "") means hide. Detect definition with
-// `in`, never truthiness, and expose only normalized booleans to the
-// frontend (never raw env values).
+// KeplerLLM fork: optional UI-only visibility controls. Strict boolean
+// semantics shared with KEPLERLLM_HIDE_SETTINGS_BUTTONS,
+// DISABLE_VIEW_CHAT_HISTORY and WORKSPACE_DELETION_PROTECTION: only "true"
+// or "1" (case-insensitive, whitespace trimmed) hide; unset, "", "false",
+// "0", or any other value means normal behavior. Only normalized booleans
+// are exposed to the frontend (never raw env values).
 const HIDE_TOOLS_BUTTON_ENV = "KEPLERLLM_HIDE_TOOLS_BUTTON";
 const HIDE_CREATE_AGENT_BUTTON_ENV = "KEPLERLLM_HIDE_CREATE_AGENT_BUTTON";
 const HIDE_EDIT_WORKSPACE_BUTTON_ENV = "KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON";
 const HIDE_UPLOAD_DOCUMENT_BUTTON_ENV = "KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON";
 
-function isEnvPresent(env, name) {
-  if (env == null) return false;
-  try {
-    return name in Object(env);
-  } catch {
-    return false;
-  }
-}
-
 function resolveHideToolsButton(env = process.env) {
-  return isEnvPresent(env, HIDE_TOOLS_BUTTON_ENV);
+  return parseBooleanEnv(env?.[HIDE_TOOLS_BUTTON_ENV]);
 }
 
 function resolveHideCreateAgentButton(env = process.env) {
-  return isEnvPresent(env, HIDE_CREATE_AGENT_BUTTON_ENV);
+  return parseBooleanEnv(env?.[HIDE_CREATE_AGENT_BUTTON_ENV]);
 }
 
 function resolveHideEditWorkspaceButton(env = process.env) {
-  return isEnvPresent(env, HIDE_EDIT_WORKSPACE_BUTTON_ENV);
+  return parseBooleanEnv(env?.[HIDE_EDIT_WORKSPACE_BUTTON_ENV]);
 }
 
 function resolveHideUploadDocumentButton(env = process.env) {
-  return isEnvPresent(env, HIDE_UPLOAD_DOCUMENT_BUTTON_ENV);
+  return parseBooleanEnv(env?.[HIDE_UPLOAD_DOCUMENT_BUTTON_ENV]);
 }
 
 function resolveVisibilityFlags(env = process.env) {
@@ -95,7 +90,6 @@ module.exports = {
   HIDE_CREATE_AGENT_BUTTON_ENV,
   HIDE_EDIT_WORKSPACE_BUTTON_ENV,
   HIDE_UPLOAD_DOCUMENT_BUTTON_ENV,
-  isEnvPresent,
   resolveModelDisplayName,
   resolveDefaultUILanguage,
   resolveHideToolsButton,

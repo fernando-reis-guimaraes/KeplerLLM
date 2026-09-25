@@ -10,6 +10,9 @@ const { PGVector } = require("../utils/vectorDbProviders/pgvector");
 const { NativeEmbedder } = require("../utils/EmbeddingEngines/native");
 const { getBaseLLMProviderModel } = require("../utils/helpers");
 const {
+  parseBooleanEnv,
+} = require("../utils/helpers/parseBooleanEnv");
+const {
   ConnectionStringParser,
 } = require("../utils/agents/aibitat/plugins/sql-agent/SQLConnectors/utils");
 
@@ -470,7 +473,13 @@ const SystemSettings = {
       MultiUserMode: await this.isMultiUserMode(),
       MemoryEnabled: await this.memoriesEnabled(),
       MemoryAutoExtraction: await this.memoryAutoExtractionSetting(),
-      DisableTelemetry: process.env.DISABLE_TELEMETRY || "false",
+      DisableTelemetry: String(
+        // KeplerLLM fork: normalized through the shared strict parser so the
+        // string API contract ("true"/"false", consumed by the frontend via
+        // `settings?.DisableTelemetry !== "true"`) always agrees with backend
+        // telemetry enforcement. Only "true"/"1" yield "true".
+        parseBooleanEnv(process.env.DISABLE_TELEMETRY)
+      ),
 
       // --------------------------------------------------------
       // Embedder Provider Selection Settings & Configs
@@ -612,18 +621,25 @@ const SystemSettings = {
       // Compliance Settings
       // --------------------------------------------------------
       // Disable View Chat History for the whole instance.
-      DisableViewChatHistory:
-        "DISABLE_VIEW_CHAT_HISTORY" in process.env || false,
-      WorkspaceDeletionProtection:
-        "WORKSPACE_DELETION_PROTECTION" in process.env || false,
-      HideSettingsButtons:
-        "KEPLERLLM_HIDE_SETTINGS_BUTTONS" in process.env || false,
+      // KeplerLLM fork: strict boolean parsing. Only "true"/"1" enable;
+      // "false", "0", "", or any other value safely resolve to false.
+      DisableViewChatHistory: parseBooleanEnv(
+        process.env.DISABLE_VIEW_CHAT_HISTORY
+      ),
+      WorkspaceDeletionProtection: parseBooleanEnv(
+        process.env.WORKSPACE_DELETION_PROTECTION
+      ),
+      HideSettingsButtons: parseBooleanEnv(
+        process.env.KEPLERLLM_HIDE_SETTINGS_BUTTONS
+      ),
 
       // --------------------------------------------------------
       // Simple SSO Settings
       // --------------------------------------------------------
-      SimpleSSOEnabled: "SIMPLE_SSO_ENABLED" in process.env || false,
-      SimpleSSONoLogin: "SIMPLE_SSO_NO_LOGIN" in process.env || false,
+      // KeplerLLM fork: strict boolean parsing. Only "true"/"1" enable;
+      // "false", "0", "", or any other value safely resolve to false.
+      SimpleSSOEnabled: parseBooleanEnv(process.env.SIMPLE_SSO_ENABLED),
+      SimpleSSONoLogin: parseBooleanEnv(process.env.SIMPLE_SSO_NO_LOGIN),
       SimpleSSONoLoginRedirect: this.simpleSSO.noLoginRedirect(),
 
       // --------------------------------------------------------
@@ -1127,8 +1143,10 @@ const SystemSettings = {
      * @returns {string | null}
      */
     noLoginRedirect: () => {
-      if (!("SIMPLE_SSO_ENABLED" in process.env)) return null; // if simple SSO is not enabled, return null
-      if (!("SIMPLE_SSO_NO_LOGIN" in process.env)) return null; // if the no login config is not set, return null
+      // KeplerLLM fork: the SSO boolean flags use strict parsing; the
+      // redirect URL itself remains a presence check ("is a URL configured?").
+      if (!parseBooleanEnv(process.env.SIMPLE_SSO_ENABLED)) return null; // if simple SSO is not enabled, return null
+      if (!parseBooleanEnv(process.env.SIMPLE_SSO_NO_LOGIN)) return null; // if the no login config is not set, return null
       if (!("SIMPLE_SSO_NO_LOGIN_REDIRECT" in process.env)) return null; // if the no login redirect is not set, return null
 
       try {

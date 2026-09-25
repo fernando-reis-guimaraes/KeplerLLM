@@ -185,36 +185,76 @@ describe("resolveVisibilityFlags (KeplerLLM runtime UI visibility)", () => {
     ).toEqual({ ...ALL_FALSE, hideUploadDocumentButton: true });
   });
 
-  it("uses presence semantics: VARIABLE=false still hides", () => {
+  it("uses strict boolean semantics: only true/1 hide", () => {
     expect(
-      resolveVisibilityFlags({ KEPLERLLM_HIDE_TOOLS_BUTTON: "false" })
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_TOOLS_BUTTON: "TRUE" })
     ).toEqual({ ...ALL_FALSE, hideToolsButton: true });
     expect(
-      resolveVisibilityFlags({ KEPLERLLM_HIDE_CREATE_AGENT_BUTTON: "false" })
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_TOOLS_BUTTON: " true " })
+    ).toEqual({ ...ALL_FALSE, hideToolsButton: true });
+    expect(
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_TOOLS_BUTTON: "1" })
+    ).toEqual({ ...ALL_FALSE, hideToolsButton: true });
+    expect(
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_CREATE_AGENT_BUTTON: "true" })
     ).toEqual({ ...ALL_FALSE, hideCreateAgentButton: true });
     expect(
-      resolveVisibilityFlags({ KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON: "false" })
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON: "1" })
     ).toEqual({ ...ALL_FALSE, hideEditWorkspaceButton: true });
+    expect(
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON: "1" })
+    ).toEqual({ ...ALL_FALSE, hideUploadDocumentButton: true });
+  });
+
+  it('strict boolean semantics: VARIABLE="false" shows normally', () => {
+    expect(
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_TOOLS_BUTTON: "false" })
+    ).toEqual(ALL_FALSE);
+    expect(
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_CREATE_AGENT_BUTTON: "false" })
+    ).toEqual(ALL_FALSE);
+    expect(
+      resolveVisibilityFlags({ KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON: "false" })
+    ).toEqual(ALL_FALSE);
     expect(
       resolveVisibilityFlags({
         KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON: "false",
       })
-    ).toEqual({ ...ALL_FALSE, hideUploadDocumentButton: true });
+    ).toEqual(ALL_FALSE);
   });
 
-  it('uses presence semantics: VARIABLE="" still hides', () => {
+  it('strict boolean semantics: VARIABLE="" shows normally', () => {
     expect(resolveVisibilityFlags({ KEPLERLLM_HIDE_TOOLS_BUTTON: "" })).toEqual(
-      { ...ALL_FALSE, hideToolsButton: true }
+      ALL_FALSE
     );
     expect(
       resolveVisibilityFlags({ KEPLERLLM_HIDE_CREATE_AGENT_BUTTON: "" })
-    ).toEqual({ ...ALL_FALSE, hideCreateAgentButton: true });
+    ).toEqual(ALL_FALSE);
     expect(
       resolveVisibilityFlags({ KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON: "" })
-    ).toEqual({ ...ALL_FALSE, hideEditWorkspaceButton: true });
+    ).toEqual(ALL_FALSE);
     expect(
       resolveVisibilityFlags({ KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON: "" })
-    ).toEqual({ ...ALL_FALSE, hideUploadDocumentButton: true });
+    ).toEqual(ALL_FALSE);
+  });
+
+  it('strict boolean semantics: "0"/"null"/"yes"/arbitrary values show normally', () => {
+    for (const value of ["0", " 0 ", "null", "undefined", "yes", "no", "on", "off", "abc"]) {
+      expect(
+        resolveVisibilityFlags({ KEPLERLLM_HIDE_TOOLS_BUTTON: value })
+      ).toEqual(ALL_FALSE);
+      expect(
+        resolveVisibilityFlags({ KEPLERLLM_HIDE_CREATE_AGENT_BUTTON: value })
+      ).toEqual(ALL_FALSE);
+      expect(
+        resolveVisibilityFlags({ KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON: value })
+      ).toEqual(ALL_FALSE);
+      expect(
+        resolveVisibilityFlags({
+          KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON: value,
+        })
+      ).toEqual(ALL_FALSE);
+    }
   });
 
   it("ignores unrelated environment variables", () => {
@@ -249,12 +289,25 @@ describe("resolveVisibilityFlags (KeplerLLM runtime UI visibility)", () => {
         "$1"
       )
     );
-    expect(payload.hideToolsButton).toBe(true);
-    expect(payload.hideCreateAgentButton).toBe(true);
+    expect(payload.hideToolsButton).toBe(false);
+    expect(payload.hideCreateAgentButton).toBe(false);
     expect(payload.hideEditWorkspaceButton).toBe(false);
     expect(payload.hideUploadDocumentButton).toBe(false);
     expect(typeof payload.hideToolsButton).toBe("boolean");
     expect(JSON.stringify(payload)).not.toContain("super-secret-raw-value");
     expect(JSON.stringify(payload)).not.toContain("super-secret");
+  });
+
+  it("KEPLERLLM_HIDE_TOOLS_BUTTON=false results in hideToolsButton === false", () => {
+    const script = keplerllmConfigScript({
+      KEPLERLLM_HIDE_TOOLS_BUTTON: "false",
+    });
+    const payload = JSON.parse(
+      script.replace(
+        /^<script>window\.__KEPLERLLM_CONFIG__=(.*);<\/script>$/,
+        "$1"
+      )
+    );
+    expect(payload.hideToolsButton).toBe(false);
   });
 });

@@ -11,6 +11,9 @@ const {
   handleAnthropicChatStream,
 } = require("./anthropicChat");
 const { openaiBaseURL, anthropicBaseURL } = require("./endpoints");
+const {
+  parseBooleanEnv,
+} = require("../../helpers/parseBooleanEnv");
 
 /**
  * Bedrock's OpenAI-compatible stream reports usage in a final chunk that
@@ -131,7 +134,9 @@ class AWSBedrockLLM {
   }
 
   streamingEnabled() {
-    if (!!process.env.AWS_BEDROCK_STREAMING_DISABLED) return false;
+    // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable streaming.
+    if (parseBooleanEnv(process.env.AWS_BEDROCK_STREAMING_DISABLED))
+      return false;
     return "streamGetChatCompletion" in this;
   }
 

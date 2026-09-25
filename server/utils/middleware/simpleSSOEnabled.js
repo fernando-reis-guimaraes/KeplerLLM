@@ -1,4 +1,7 @@
 const { SystemSettings } = require("../../models/systemSettings");
+const {
+  parseBooleanEnv,
+} = require("../helpers/parseBooleanEnv");
 
 /**
  * Checks if simple SSO is enabled for issuance of temporary auth tokens.
@@ -9,7 +12,8 @@ const { SystemSettings } = require("../../models/systemSettings");
  * @returns {void}
  */
 async function simpleSSOEnabled(_, response, next) {
-  if (!("SIMPLE_SSO_ENABLED" in process.env)) {
+  // KeplerLLM fork: strict boolean parsing. Only "true"/"1" enable.
+  if (!parseBooleanEnv(process.env.SIMPLE_SSO_ENABLED)) {
     return response
       .status(403)
       .send(
@@ -43,15 +47,17 @@ async function simpleSSOEnabled(_, response, next) {
  * @returns {boolean}
  */
 function simpleSSOLoginDisabled() {
+  // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable login.
   return (
-    "SIMPLE_SSO_ENABLED" in process.env && "SIMPLE_SSO_NO_LOGIN" in process.env
+    parseBooleanEnv(process.env.SIMPLE_SSO_ENABLED) &&
+    parseBooleanEnv(process.env.SIMPLE_SSO_NO_LOGIN)
   );
 }
 
 /**
  * Middleware that checks if simple SSO login is disabled by checking if the
- * SIMPLE_SSO_NO_LOGIN environment variable is set as well as
- * SIMPLE_SSO_ENABLED is set.
+ * SIMPLE_SSO_NO_LOGIN environment variable resolves to true as well as
+ * SIMPLE_SSO_ENABLED (strict boolean parsing for both).
  *
  * This middleware will 403 if SSO is enabled and no login is allowed and
  * the system is in multi-user mode. Otherwise, it will call next.

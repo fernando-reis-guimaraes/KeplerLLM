@@ -2,9 +2,9 @@
 //
 // The server exposes normalized booleans through the existing
 // `window.__KEPLERLLM_CONFIG__` bootstrap (see
-// `server/utils/boot/keplerllmConfig.js`). Presence semantics are resolved
-// server-side: an env var absent means normal behavior, present with any
-// value (including "false" or "") means hide. The frontend only ever sees
+// The server resolves strict boolean semantics server-side: only "true" or
+// "1" (case-insensitive, whitespace trimmed) hide; unset, "", "false",
+// "0", or any other value means show. The frontend only ever sees
 // booleans and must not read raw environment values.
 //
 // These flags are UI-only. They are not security boundaries: direct routes,

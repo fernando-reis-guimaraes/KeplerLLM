@@ -3,6 +3,9 @@ const { VALID_CHAT_MODE } = require("../chats/stream");
 const { EmbedChats } = require("../../models/embedChats");
 const { EmbedConfig } = require("../../models/embedConfig");
 const { reqBody } = require("../http");
+const {
+  parseBooleanEnv,
+} = require("../helpers/parseBooleanEnv");
 
 // Finds or Aborts request for a /:embedId/ url. This should always
 // be the first middleware and the :embedID should be in the URL.
@@ -68,10 +71,14 @@ async function canRespond(request, response, next) {
 
     // Optional hardening for when an embed with no allowlist is created.
     // This would mean the embed will accept requests from ANY origin (parseAllowedHosts returns
-    // null). When EMBED_REQUIRE_ALLOWLIST is enabled, treat "no allowlist" as
+    // null). When EMBED_REQUIRE_ALLOWLIST resolves to true (strict boolean
+    // parsing: only "true"/"1"), treat "no allowlist" as
     // deny-all instead of allow-all, so an embed cannot be queried cross-origin
     // until its owner explicitly sets the allowed domains.
-    if (allowedHosts === null && "EMBED_REQUIRE_ALLOWLIST" in process.env) {
+    if (
+      allowedHosts === null &&
+      parseBooleanEnv(process.env.EMBED_REQUIRE_ALLOWLIST)
+    ) {
       response.status(401).json({
         id: uuidv4(),
         type: "abort",

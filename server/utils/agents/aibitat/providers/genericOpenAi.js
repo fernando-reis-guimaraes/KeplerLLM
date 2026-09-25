@@ -6,6 +6,9 @@ const { tooledStream, tooledComplete } = require("./helpers/tooled.js");
 const { RetryError } = require("../error.js");
 const { v4 } = require("uuid");
 const { toValidNumber, safeJsonParse } = require("../../../http/index.js");
+const {
+  parseBooleanEnv,
+} = require("../../../helpers/parseBooleanEnv");
 const { getAnythingLLMUserAgent } = require("../../../../endpoints/utils");
 const { GenericOpenAiLLM } = require("../../../AiProviders/genericOpenAi");
 const {
@@ -149,7 +152,9 @@ class GenericOpenAiProvider extends InheritMultiple([Provider, UnTooled]) {
 
   get supportsAgentStreaming() {
     // Honor streaming being disabled via ENV via user preference.
-    if (process.env.GENERIC_OPENAI_STREAMING_DISABLED === "true") return false;
+    // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable streaming.
+    if (parseBooleanEnv(process.env.GENERIC_OPENAI_STREAMING_DISABLED))
+      return false;
     return true;
   }
 

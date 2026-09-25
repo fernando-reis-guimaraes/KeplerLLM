@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const swaggerUi = require("swagger-ui-express");
+const {
+  parseBooleanEnv,
+} = require("../utils/helpers/parseBooleanEnv");
 
 function faviconUrl() {
   return process.env.NODE_ENV === "production"
@@ -9,7 +12,8 @@ function faviconUrl() {
 }
 
 function useSwagger(app) {
-  if (process.env.DISABLE_SWAGGER_DOCS === "true") {
+  // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable the docs.
+  if (parseBooleanEnv(process.env.DISABLE_SWAGGER_DOCS)) {
     console.log(
       `\x1b[33m[SWAGGER DISABLED]\x1b[0m Swagger documentation is disabled via DISABLE_SWAGGER_DOCS environment variable.`
     );

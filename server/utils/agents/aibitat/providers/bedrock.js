@@ -10,6 +10,9 @@ const {
 } = require("./helpers/anthropicTooled.js");
 const { RetryError } = require("../error.js");
 const {
+  parseBooleanEnv,
+} = require("../../../helpers/parseBooleanEnv");
+const {
   openaiBaseURL,
   anthropicBaseURL,
 } = require("../../../AiProviders/bedrock/endpoints.js");
@@ -61,7 +64,9 @@ class AWSBedrockProvider extends InheritMultiple([Provider, UnTooled]) {
   }
 
   get supportsAgentStreaming() {
-    if (!!process.env.AWS_BEDROCK_STREAMING_DISABLED) return false;
+    // KeplerLLM fork: strict boolean parsing. Only "true"/"1" disable streaming.
+    if (parseBooleanEnv(process.env.AWS_BEDROCK_STREAMING_DISABLED))
+      return false;
     return true;
   }
 
