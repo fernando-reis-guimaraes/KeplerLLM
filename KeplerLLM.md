@@ -581,7 +581,7 @@ Select the initial UI language from a server-side runtime environment variable, 
 
 #### Observable behavior
 
-- When `DEFAULT_UI_LANGUAGE` is unset, behavior is exactly upstream AnythingLLM behavior (browser language detection with `en` fallback).
+- When `DEFAULT_UI_LANGUAGE` is unset and no explicit KeplerLLM language preference exists, the UI falls back to browser language detection with `en` fallback. Legacy `i18nextLng` values are intentionally not treated as explicit preferences because they may have been written automatically by i18next, so this differs from upstream handling of the generic cached language.
 - For a browser/session with no explicit KeplerLLM language preference:
   - `DEFAULT_UI_LANGUAGE=pt` starts the UI in Brazilian Portuguese.
   - `DEFAULT_UI_LANGUAGE=en` starts the UI in English.
@@ -602,7 +602,7 @@ Select the initial UI language from a server-side runtime environment variable, 
 - Validation happens against the language keys actually exported by `frontend/src/locales/resources.js`. No duplicated hardcoded language list is maintained. Input is normalized (trim, lowercase, `_` to `-`) with base-language fallback (for example `pt-BR` resolves to `pt`), without breaking the existing locale naming conventions.
 - The explicit preference is never migrated from `i18nextLng`, since a cached `i18nextLng` value may come from automatic detection. Absence of the explicit-preference key means "no explicit user preference". The existing `i18nextLng` cache keeps being written by the detector and is left otherwise untouched.
 - Relevant implementation lives in `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/defaultUILanguage.js`, `frontend/src/i18n.js`, and `frontend/src/hooks/useLanguageOptions.js` (manual selection persistence only). No new UI is introduced.
-- Single-user and multi-user operation are unchanged. Existing translations and browser language detection are preserved when the variable is unset.
+- Single-user and multi-user operation are unchanged. Existing translations are preserved. When the variable is unset and no explicit preference exists, browser language detection is used; only the ambiguous legacy `i18nextLng` cache is excluded from precedence.
 
 #### Out of scope
 
@@ -641,7 +641,7 @@ The fork tracks a stable AnythingLLM baseline. The current baseline is:
 | `DEFAULT_WORKSPACE_HISTORY`    | unset                 | Bootstrap `openAiHistory` as an integer `>= 0`. Unset leaves the upstream default.             |
 | `DEFAULT_AGENT_SKILLS`         | unset                 | Bootstrap opt-in Agent Skills as a comma-separated list. Unset preserves upstream behavior. Empty string enables none. Existing DB configuration is never overwritten. |
 | `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | When present with any value, hide Settings entry buttons in the UI only. Direct URLs still work. |
-| `DEFAULT_UI_LANGUAGE`          | unset                 | Default UI language used only when the user has not explicitly selected a language. Must match a supported locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects Brazilian Portuguese. Unset preserves browser detection; invalid values are ignored. |
+| `DEFAULT_UI_LANGUAGE`          | unset                 | Default UI language used only when no explicit KeplerLLM preference exists. Must match a supported locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects Brazilian Portuguese. Unset falls back to browser detection with `en` fallback; legacy `i18nextLng` is ignored for precedence and invalid values are ignored. |
 
 The deployment mounts only:
 
@@ -750,7 +750,7 @@ Optionally set the default UI language (default only; an explicit user choice st
 DEFAULT_UI_LANGUAGE=pt
 ```
 
-Used only when the user has not explicitly selected a language through the UI. Must match a supported KeplerLLM locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects the existing Brazilian Portuguese translation. `i18nextLng` alone is not treated as an explicit choice, so the default also applies to existing users who never manually selected a language. When unset, browser language detection is preserved; invalid values are ignored safely. The value is read at container runtime through `window.__KEPLERLLM_CONFIG__`, so no frontend rebuild is needed on CapRover.
+Used only when no explicit KeplerLLM language preference exists (stored separately in `keplerllmExplicitUILanguage` when the user changes the language through the UI). Must match a supported KeplerLLM locale key (e.g. `en`, `pt`, `es`, `fr`). `pt` selects the existing Brazilian Portuguese translation. `i18nextLng` alone is not treated as an explicit choice, so the default also applies to existing users who never manually selected a language. When unset and no explicit preference exists, the UI falls back to browser language detection with `en` fallback; invalid values are ignored safely. The value is read at container runtime through `window.__KEPLERLLM_CONFIG__`, so no frontend rebuild is needed on CapRover.
 
 Keep the named volume:
 
