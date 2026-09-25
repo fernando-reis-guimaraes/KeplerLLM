@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables, default workspace bootstrap a partir de environment variables, default Agent Skills bootstrap a partir de environment variable, optional UI-only hiding dos Settings entry buttons, sidebar thread internationalization e runtime-configurable default UI language.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables, default workspace bootstrap a partir de environment variables, default Agent Skills bootstrap a partir de environment variable, optional UI-only hiding dos Settings entry buttons, sidebar thread internationalization, runtime-configurable default UI language e optional runtime UI visibility controls.
 
 ## Fork changes
 
@@ -593,6 +593,58 @@ Selecionar o idioma inicial da UI a partir de uma environment variable de runtim
 - Renomear a locale key `pt` existente.
 - Persistir o default no database ou adicionar UI toggle.
 
+### Requirement 14 - Optional runtime UI visibility controls
+
+#### Objective
+
+Opcionalmente ocultar UI controls específicos para simplificar a KeplerLLM UI sem mudar permissions, routes, APIs, underlying capabilities ou o upstream behavior quando as variáveis estão ausentes.
+
+#### Observable behavior
+
+- Quatro environment variables independentes de runtime são suportadas:
+
+```text
+KEPLERLLM_HIDE_TOOLS_BUTTON
+KEPLERLLM_HIDE_CREATE_AGENT_BUTTON
+KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON
+KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON
+```
+
+- A presence semantics segue `KEPLERLLM_HIDE_SETTINGS_BUTTONS`, `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`:
+  - Variável ausente -> normal existing behavior.
+  - Variável presente com qualquer valor -> oculta o UI element correspondente.
+  - Isso inclui valores como `true`, `1`, empty string ou até `false`.
+  - A presença é detectada com `in`, nunca por truthiness.
+- Quando `KEPLERLLM_HIDE_TOOLS_BUTTON` está presente, o Tools button visível no componente compartilhado `PromptInput` (`frontend/src/components/WorkspaceChat/ChatContainer/PromptInput/index.jsx`) não é renderizado. Isso vale em todos os lugares onde o componente compartilhado é renderizado, incluindo o prompt principal/home e o prompt do workspace chat. A implementação do ToolsMenu, o comportamento de teclado `/` que pode abrir o Tools menu, slash commands, Agent Skills, agent execution, MCP tools, APIs, backend capabilities, authorization e workspace configuration permanecem inalterados.
+- Quando `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` está presente, a quick action de `main-page.quickActions.createAgent` não é renderizada (`frontend/src/components/lib/QuickActions/index.jsx`). A visibilidade role-based existente é preservada, de modo que a visibilidade efetiva é a visibilidade upstream existente E não oculto pela runtime configuration. A target route e o comportamento de Agent Skills permanecem inalterados.
+- Quando `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` está presente, a quick action de `main-page.quickActions.editWorkspace` não é renderizada. Todas as condições existentes, incluindo o requisito de available workspace, role checks e navigation behavior, são preservadas. As URLs diretas de workspace settings e outras formas de alcançar as workspace settings permanecem inalteradas.
+- Quando `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` está presente, apenas a quick action de `main-page.quickActions.uploadDocument` não é renderizada. Drag-and-drop uploads, pasted file uploads, attachments no chat, upload APIs, document management e workspace document ingestion permanecem inalterados.
+- Se a runtime configuration e/ou a lógica de permissão existente resultar em zero Quick Actions visíveis, todo o componente `QuickActions` não renderiza nada. Nenhum container vazio e nenhum espaçamento `mt-6` permanecem. Por exemplo, as três ações ocultas não renderizam o wrapper, enquanto apenas Upload Document visível renderiza o wrapper só com Upload Document.
+- Quando as quatro variáveis estão ausentes, a UI renderizada e o comportamento são idênticos à implementação atual do KeplerLLM.
+
+#### Rules and limits
+
+- Mudança apenas de UI. Não são security boundaries. Direct routes, APIs e capabilities permanecem disponíveis.
+- Apenas runtime server environment variables. Não há variável build-time `VITE_*`, nem database migration, nem novos UI settings, nem persistent database configuration, nem route changes, nem authorization changes, nem API contract changes.
+- O server expõe apenas booleans normalizados (`hideToolsButton`, `hideCreateAgentButton`, `hideEditWorkspaceButton`, `hideUploadDocumentButton`) pelo bootstrap `window.__KEPLERLLM_CONFIG__` existente, renderizado por request pelo `MetaGenerator` (`server/utils/boot/keplerllmConfig.js`, `server/utils/boot/MetaGenerator.js`). Nenhum segundo mecanismo de runtime configuration é introduzido e nenhum valor raw de environment variable é exposto ao frontend.
+- A implementation relevante está em `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/keplerllmVisibility.js`, `frontend/src/hooks/useKeplerllmVisibility.js`, `frontend/src/components/WorkspaceChat/ChatContainer/PromptInput/index.jsx` e `frontend/src/components/lib/QuickActions/index.jsx`.
+- Exemplo de configuração operacional:
+
+```env
+KEPLERLLM_HIDE_TOOLS_BUTTON=true
+KEPLERLLM_HIDE_CREATE_AGENT_BUTTON=true
+KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON=true
+KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON=true
+```
+
+- Nenhum rebuild do frontend é necessário; a configuração é runtime-only.
+
+#### Out of scope
+
+- Route protection, authentication, authorization, RBAC, middleware, redirects ou server-side access restrictions.
+- Desabilitar backend capabilities, upload ingestion, agent execution ou MCP tools.
+- Ocultar qualquer outro elemento da UI.
+
 ## Appendix - Operational reference
 
 Este apêndice registra apenas os fatos de runtime e publishing necessários para operar o fork. Não descreve implementation.
@@ -625,6 +677,10 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `DEFAULT_AGENT_SKILLS`         | unset                 | Bootstrap das opt-in Agent Skills como lista comma-separated. Unset preserva o upstream behavior. Empty string nao habilita nenhuma. Configuracao existente do DB nunca e sobrescrita. |
 | `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | Quando presente com qualquer valor, oculta os Settings entry buttons apenas na UI. URLs diretas continuam funcionando. |
 | `DEFAULT_UI_LANGUAGE`          | unset                 | Idioma default da UI, usado apenas quando não existe preferência explícita KeplerLLM. Deve corresponder a uma locale key suportada (ex. `en`, `pt`, `es`, `fr`). `pt` seleciona o português brasileiro. Ausente recorre ao browser detection com fallback `en`; `i18nextLng` legado é ignorado na precedência e valores inválidos são ignorados. |
+| `KEPLERLLM_HIDE_TOOLS_BUTTON` | unset                 | Quando presente com qualquer valor, oculta o Tools button visível apenas na UI. ToolsMenu, comportamento `/` de teclado, slash commands, agents e APIs permanecem disponíveis. |
+| `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` | unset           | Quando presente com qualquer valor, oculta a quick action Create an Agent apenas na UI. Os role checks existentes continuam valendo. Target route e Agent Skills permanecem disponíveis. |
+| `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` | unset          | Quando presente com qualquer valor, oculta a quick action Edit Workspace apenas na UI. URLs diretas de workspace settings permanecem disponíveis. |
+| `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` | unset         | Quando presente com qualquer valor, oculta a quick action Upload a Document apenas na UI. Drag-and-drop, pasted uploads, attachments, upload APIs e ingestion permanecem disponíveis. |
 
 O deployment monta apenas:
 
@@ -725,6 +781,15 @@ Opcionalmente oculte os Settings entry buttons apenas na UI (as Settings URLs di
 
 ```text
 KEPLERLLM_HIDE_SETTINGS_BUTTONS=1
+```
+
+Opcionalmente oculte UI controls específicos apenas na UI (controles apenas de UI, não são security boundaries; direct routes, APIs e capabilities permanecem disponíveis; runtime-only sem rebuild do frontend; presence semantics com qualquer valor significando ocultar; variáveis ausentes preservam o comportamento existente):
+
+```text
+KEPLERLLM_HIDE_TOOLS_BUTTON=true
+KEPLERLLM_HIDE_CREATE_AGENT_BUTTON=true
+KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON=true
+KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON=true
 ```
 
 Opcionalmente defina o default UI language (apenas default; uma escolha explícita do usuário continua prevalecendo):

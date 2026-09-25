@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import useUser from "@/hooks/useUser";
+import { resolveQuickActionVisibility } from "@/utils/keplerllmVisibility";
 
 /**
  * Quick action buttons for home and empty workspace states.
@@ -18,26 +19,31 @@ export default function QuickActions({
   const { t } = useTranslation();
   const { user } = useUser();
 
+  // KeplerLLM fork: runtime-only UI controls. Effective visibility is the
+  // existing upstream role logic AND the runtime hide flags. Direct routes,
+  // upload APIs, and drag-and-drop/pasted uploads remain available.
+  const { showCreateAgent, showEditWorkspace, showUploadDocument } =
+    resolveQuickActionVisibility({ user, hasAvailableWorkspace });
+  if (!showCreateAgent && !showEditWorkspace && !showUploadDocument)
+    return null;
+
   return (
     <div className="flex flex-wrap justify-center gap-2 mt-6">
       <QuickActionButton
         label={t("main-page.quickActions.createAgent")}
         onClick={onCreateAgent}
-        show={!user || ["admin"].includes(user?.role)}
+        show={showCreateAgent}
       />
       <QuickActionButton
         label={t("main-page.quickActions.editWorkspace")}
         onClick={onEditWorkspace}
-        show={
-          hasAvailableWorkspace &&
-          (!user || ["admin", "manager"].includes(user?.role))
-        }
+        show={showEditWorkspace}
       />
       <QuickActionButton
         label={t("main-page.quickActions.uploadDocument")}
         onClick={onUploadDocument}
         // Any user can upload documents.
-        show={true}
+        show={showUploadDocument}
       />
     </div>
   );
