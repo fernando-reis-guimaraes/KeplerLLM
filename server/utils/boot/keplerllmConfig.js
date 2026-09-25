@@ -32,6 +32,51 @@ function resolveDefaultUILanguage(env = process.env) {
   return normalizeDefaultUILanguageTag(env?.DEFAULT_UI_LANGUAGE);
 }
 
+// KeplerLLM fork: optional UI-only visibility controls. Presence semantics
+// match KEPLERLLM_HIDE_SETTINGS_BUTTONS, DISABLE_VIEW_CHAT_HISTORY and
+// WORKSPACE_DELETION_PROTECTION: absent means normal behavior, present with
+// any value (including "false" or "") means hide. Detect definition with
+// `in`, never truthiness, and expose only normalized booleans to the
+// frontend (never raw env values).
+const HIDE_TOOLS_BUTTON_ENV = "KEPLERLLM_HIDE_TOOLS_BUTTON";
+const HIDE_CREATE_AGENT_BUTTON_ENV = "KEPLERLLM_HIDE_CREATE_AGENT_BUTTON";
+const HIDE_EDIT_WORKSPACE_BUTTON_ENV = "KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON";
+const HIDE_UPLOAD_DOCUMENT_BUTTON_ENV = "KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON";
+
+function isEnvPresent(env, name) {
+  if (env == null) return false;
+  try {
+    return name in Object(env);
+  } catch {
+    return false;
+  }
+}
+
+function resolveHideToolsButton(env = process.env) {
+  return isEnvPresent(env, HIDE_TOOLS_BUTTON_ENV);
+}
+
+function resolveHideCreateAgentButton(env = process.env) {
+  return isEnvPresent(env, HIDE_CREATE_AGENT_BUTTON_ENV);
+}
+
+function resolveHideEditWorkspaceButton(env = process.env) {
+  return isEnvPresent(env, HIDE_EDIT_WORKSPACE_BUTTON_ENV);
+}
+
+function resolveHideUploadDocumentButton(env = process.env) {
+  return isEnvPresent(env, HIDE_UPLOAD_DOCUMENT_BUTTON_ENV);
+}
+
+function resolveVisibilityFlags(env = process.env) {
+  return {
+    hideToolsButton: resolveHideToolsButton(env),
+    hideCreateAgentButton: resolveHideCreateAgentButton(env),
+    hideEditWorkspaceButton: resolveHideEditWorkspaceButton(env),
+    hideUploadDocumentButton: resolveHideUploadDocumentButton(env),
+  };
+}
+
 // Inline boot script rendered by MetaGenerator before the app bundle.
 // JSON-escaped so an operator-provided label cannot break out of the
 // script element.
@@ -39,13 +84,24 @@ function keplerllmConfigScript(env = process.env) {
   const payload = JSON.stringify({
     modelDisplayName: resolveModelDisplayName(env),
     defaultUILanguage: resolveDefaultUILanguage(env),
+    ...resolveVisibilityFlags(env),
   }).replace(/</g, "\\u003c");
   return `<script>window.__KEPLERLLM_CONFIG__=${payload};</script>`;
 }
 
 module.exports = {
   DEFAULT_MODEL_DISPLAY_NAME,
+  HIDE_TOOLS_BUTTON_ENV,
+  HIDE_CREATE_AGENT_BUTTON_ENV,
+  HIDE_EDIT_WORKSPACE_BUTTON_ENV,
+  HIDE_UPLOAD_DOCUMENT_BUTTON_ENV,
+  isEnvPresent,
   resolveModelDisplayName,
   resolveDefaultUILanguage,
+  resolveHideToolsButton,
+  resolveHideCreateAgentButton,
+  resolveHideEditWorkspaceButton,
+  resolveHideUploadDocumentButton,
+  resolveVisibilityFlags,
   keplerllmConfigScript,
 };

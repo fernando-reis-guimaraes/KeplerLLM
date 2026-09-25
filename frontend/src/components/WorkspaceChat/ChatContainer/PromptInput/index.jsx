@@ -18,6 +18,7 @@ import usePromptInputStorage from "@/hooks/usePromptInputStorage";
 import ToolsMenu, { TOOLS_MENU_KEYBOARD_EVENT } from "./ToolsMenu";
 import { useSearchParams } from "react-router-dom";
 import { useIsAgentSessionActive } from "@/utils/chat/agent";
+import useKeplerllmVisibility from "@/hooks/useKeplerllmVisibility";
 
 export const PROMPT_INPUT_ID = "primary-prompt-input";
 export const PROMPT_INPUT_EVENT = "set_prompt_input";
@@ -58,6 +59,9 @@ export default function PromptInput({
   const redoStack = useRef([]);
   const { textSizeClass } = useTextSize();
   const [searchParams] = useSearchParams();
+  // KeplerLLM fork: runtime-only UI control. Hides the visible Tools button
+  // only; ToolsMenu, "/" keyboard behavior, and agent capabilities are unchanged.
+  const { hideToolsButton } = useKeplerllmVisibility();
 
   // Synchronizes prompt input value with localStorage, scoped to the current thread.
   usePromptInputStorage({
@@ -384,12 +388,14 @@ export default function PromptInput({
                       visible={!agentSessionActive & showAgentCommand}
                     />
                   </div>
-                  <ToolsButton
-                    showTools={showTools}
-                    setShowTools={setShowTools}
-                    textareaRef={textareaRef}
-                    autoOpenedToolsRef={autoOpenedToolsRef}
-                  />
+                  {!hideToolsButton && (
+                    <ToolsButton
+                      showTools={showTools}
+                      setShowTools={setShowTools}
+                      textareaRef={textareaRef}
+                      autoOpenedToolsRef={autoOpenedToolsRef}
+                    />
+                  )}
                 </div>
                 <div className="flex gap-x-2 items-center">
                   <SpeechToText sendCommand={sendCommand} />
