@@ -7,6 +7,7 @@ const {
   resolveHideEditWorkspaceButton,
   resolveHideUploadDocumentButton,
   resolveVisibilityFlags,
+  resolveSafariIframeLinkFix,
   keplerllmConfigScript,
 } = require("../../../utils/boot/keplerllmConfig");
 
@@ -57,6 +58,7 @@ describe("keplerllmConfigScript (MetaGenerator boot script)", () => {
       hideCreateAgentButton: false,
       hideEditWorkspaceButton: false,
       hideUploadDocumentButton: false,
+      safariIframeLinkFix: false,
     });
   });
 
@@ -71,6 +73,7 @@ describe("keplerllmConfigScript (MetaGenerator boot script)", () => {
       hideCreateAgentButton: false,
       hideEditWorkspaceButton: false,
       hideUploadDocumentButton: false,
+      safariIframeLinkFix: false,
     });
   });
 
@@ -95,6 +98,7 @@ describe("keplerllmConfigScript (MetaGenerator boot script)", () => {
       hideCreateAgentButton: false,
       hideEditWorkspaceButton: false,
       hideUploadDocumentButton: false,
+      safariIframeLinkFix: false,
     });
   });
 
@@ -112,6 +116,7 @@ describe("keplerllmConfigScript (MetaGenerator boot script)", () => {
       hideCreateAgentButton: false,
       hideEditWorkspaceButton: false,
       hideUploadDocumentButton: false,
+      safariIframeLinkFix: false,
     });
     expect(JSON.stringify(payload)).not.toContain("super-secret");
     expect(JSON.stringify(payload)).not.toContain("sk-secret");
@@ -309,5 +314,118 @@ describe("resolveVisibilityFlags (KeplerLLM runtime UI visibility)", () => {
       )
     );
     expect(payload.hideToolsButton).toBe(false);
+  });
+});
+
+describe("resolveSafariIframeLinkFix (KeplerLLM Safari iframe link-click fallback)", () => {
+  function payloadOf(script) {
+    return JSON.parse(
+      script.replace(
+        /^<script>window\.__KEPLERLLM_CONFIG__=(.*);<\/script>$/,
+        "$1"
+      )
+    );
+  }
+
+  it("defaults to disabled when unset", () => {
+    expect(resolveSafariIframeLinkFix({})).toBe(false);
+    expect(payloadOf(keplerllmConfigScript({})).safariIframeLinkFix).toBe(
+      false
+    );
+  });
+
+  it("uses strict boolean semantics: only true/1 enable", () => {
+    expect(
+      resolveSafariIframeLinkFix({
+        KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "true",
+      })
+    ).toBe(true);
+    expect(
+      resolveSafariIframeLinkFix({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "TRUE" })
+    ).toBe(true);
+    expect(
+      resolveSafariIframeLinkFix({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: " true " })
+    ).toBe(true);
+    expect(resolveSafariIframeLinkFix({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "1" })).toBe(
+      true
+    );
+    expect(
+      resolveSafariIframeLinkFix({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: " 1 " })
+    ).toBe(true);
+    expect(resolveSafariIframeLinkFix({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: true })).toBe(
+      true
+    );
+    expect(resolveSafariIframeLinkFix({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: 1 })).toBe(
+      true
+    );
+  });
+
+  it("strict boolean semantics: false/0/empty/arbitrary disable", () => {
+    for (const value of [
+      "false",
+      "FALSE",
+      " false ",
+      "0",
+      " 0 ",
+      "",
+      "   ",
+      "null",
+      "undefined",
+      "yes",
+      "no",
+      "on",
+      "off",
+      "abc",
+      false,
+      0,
+      null,
+      undefined,
+    ]) {
+      expect(
+        resolveSafariIframeLinkFix({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: value })
+      ).toBe(false);
+    }
+    expect(payloadOf(keplerllmConfigScript({})).safariIframeLinkFix).toBe(false);
+    expect(
+      payloadOf(keplerllmConfigScript({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "" }))
+        .safariIframeLinkFix
+    ).toBe(false);
+    expect(
+      payloadOf(
+        keplerllmConfigScript({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "false" })
+      ).safariIframeLinkFix
+    ).toBe(false);
+    expect(
+      payloadOf(keplerllmConfigScript({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "0" }))
+        .safariIframeLinkFix
+    ).toBe(false);
+    expect(
+      payloadOf(
+        keplerllmConfigScript({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "arbitrary" })
+      ).safariIframeLinkFix
+    ).toBe(false);
+  });
+
+  it("KEPLERLLM_SAFARI_IFRAME_LINK_FIX=true/1 -> true in payload", () => {
+    expect(
+      payloadOf(keplerllmConfigScript({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "true" }))
+        .safariIframeLinkFix
+    ).toBe(true);
+    expect(
+      payloadOf(keplerllmConfigScript({ KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "1" }))
+        .safariIframeLinkFix
+    ).toBe(true);
+  });
+
+  it("exposes only a normalized boolean and never the raw env value", () => {
+    const script = keplerllmConfigScript({
+      KEPLERLLM_SAFARI_IFRAME_LINK_FIX: "super-secret-raw-value",
+      JWT_SECRET: "super-secret",
+    });
+    const payload = payloadOf(script);
+    expect(payload.safariIframeLinkFix).toBe(false);
+    expect(typeof payload.safariIframeLinkFix).toBe("boolean");
+    expect(JSON.stringify(payload)).not.toContain("super-secret-raw-value");
+    expect(JSON.stringify(payload)).not.toContain("super-secret");
   });
 });

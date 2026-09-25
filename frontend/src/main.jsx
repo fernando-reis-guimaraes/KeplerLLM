@@ -11,6 +11,11 @@ import Login from "@/pages/Login";
 import SimpleSSOPassthrough from "@/pages/Login/SSO/simple";
 import OnboardingFlow from "@/pages/OnboardingFlow";
 import "@/index.css";
+import { initSafariIframeLinkFix } from "@/utils/safariIframeLinkFix.js";
+
+// Temporary Safari/WebKit cross-origin iframe compatibility layer. Opt-in via
+// runtime `KEPLERLLM_SAFARI_IFRAME_LINK_FIX`; initialized once outside React.
+initSafariIframeLinkFix();
 
 const isDev = import.meta.env.DEV;
 const REACTWRAP = isDev ? React.Fragment : React.StrictMode;

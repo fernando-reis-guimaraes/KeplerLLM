@@ -4,7 +4,7 @@
 
 KeplerLLM é um fork do AnythingLLM. Preserva o comportamento upstream, exceto pelas fork changes definidas abaixo.
 
-O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables, default workspace bootstrap a partir de environment variables, default Agent Skills bootstrap a partir de environment variable, optional UI-only hiding dos Settings entry buttons, sidebar thread internationalization, runtime-configurable default UI language e optional runtime UI visibility controls.
+O fork adiciona persistent UI configuration com um único storage volume, product model label, alphabetical OpenAI model ordering, agent-authored Custom Skill staging com human approval, dynamic SQLite/PostgreSQL backend selection a partir de uma única Docker image, um optional OpenAI-compatible Responses API mode para o Generic OpenAI provider, remote MCP server configuration através de environment variables, default workspace bootstrap a partir de environment variables, default Agent Skills bootstrap a partir de environment variable, optional UI-only hiding dos Settings entry buttons, sidebar thread internationalization, runtime-configurable default UI language, optional runtime UI visibility controls e um opt-in temporary Safari/WebKit cross-origin iframe link-click compatibility workaround.
 
 ## Fork changes
 
@@ -654,6 +654,7 @@ Resolver cada environment variable cujo valor genuinamente representa um boolean
 - O shared server-side parser (`server/utils/helpers/parseBooleanEnv.js`, também usado pelo collector entrypoint) resolve `true` apenas para `true`/`"true"`/`1`/`"1"` (strings com trim e case-insensitive). Todo o resto (`false`, `"false"`, `0`, `"0"`, `""`, `"null"`, `"undefined"`, `"yes"`, `"no"`, `"on"`, `"off"`, valores arbitrários, ausente) resolve para `false` sem throw.
 - Os seguintes boolean flags usam o shared parser:
   - `KEPLERLLM_HIDE_SETTINGS_BUTTONS`, `KEPLERLLM_HIDE_TOOLS_BUTTON`, `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON`, `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON`, `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON`
+  - `KEPLERLLM_SAFARI_IFRAME_LINK_FIX`
   - `DISABLE_VIEW_CHAT_HISTORY`, `WORKSPACE_DELETION_PROTECTION`
   - `SIMPLE_SSO_ENABLED`, `SIMPLE_SSO_NO_LOGIN`
   - `EMBED_REQUIRE_ALLOWLIST`
@@ -676,6 +677,40 @@ Resolver cada environment variable cujo valor genuinamente representa um boolean
 
 - Mudar a semântica do enum de três estados `COMMUNITY_HUB_BUNDLE_DOWNLOADS_ENABLED`.
 - Mudar routes, authorization, APIs, capabilities ou UI behavior além da semântica corrigida de boolean configuration.
+
+### Requirement 16 - Temporary Safari/WebKit cross-origin iframe link-click compatibility workaround
+
+#### Objective
+
+Restaurar physical link clicks quando o KeplerLLM está embedded em um cross-origin iframe no Safari/WebKit, sem redesenhar routing, iframe architecture ou authentication.
+
+#### Observable behavior
+
+- Opt-in runtime environment variable (default desabilitado):
+
+```text
+KEPLERLLM_SAFARI_IFRAME_LINK_FIX=true
+```
+
+- Strict boolean semantics igual às outras flags KeplerLLM: `true`/`1` (case-insensitive, whitespace ao redor removido) habilita; `false`, `0`, vazio, ausente, `null` ou qualquer outro valor desabilita. Default é desabilitado.
+- Quando habilitado e a app está embedded cross-origin no Safari/WebKit, um `mouseup` físico em um anchor ordinário de navegação interna agenda um fallback de next-task (`setTimeout(..., 0)`). Se o Safari despachar o `click` nativo para o mesmo anchor antes, o fallback é cancelado; caso contrário, `anchor.click()` é chamado uma vez. Um native click saudável resulta, portanto, em exatamente uma navegação, inclusive em versões do Safari onde o bug não existe ou em uma versão futura em que a Apple corrija o bug.
+- Apenas anchors ordinários de navegação interna KeplerLLM são elegíveis (primary button, sem modifier keys, sem default-prevented, ainda conectado, href `http(s)` de mesma origem, target ausente/vazio/`_self`, sem atributo `download`). External links, `target="_blank"`, downloads, URLs `mailto:`/`tel:`/`javascript:`, middle/right click, Cmd/Ctrl/Shift/Alt-click, buttons, inputs e elementos arbitrários nunca recebem click sintetizado. O `mouseup` físico nunca sofre `preventDefault()`; o comportamento existente do anchor e do React Router permanece como source of truth.
+- Com `KEPLERLLM_SAFARI_IFRAME_LINK_FIX=false` (ou ausente/vazio/qualquer valor não habilitador), o comportamento é exatamente o comportamento existente, sem compatibility listener ativo.
+- Nenhum rebuild do frontend é necessário; o operador desabilita o workaround mudando a environment variable e reiniciando/redeployando. Remova a flag por completo quando o Safari/WebKit não mais exigir.
+
+#### Rules and limits
+
+- Apenas temporary compatibility workaround. Não é authentication feature, não é security boundary, não muda iframe permissions, sandboxing, CSP/CORS/COOP, Directito, reverse proxy configuration, React Router ou navigation semantics.
+- Apenas runtime server environment variable. O server expõe somente o boolean normalizado `safariIframeLinkFix` pelo bootstrap `window.__KEPLERLLM_CONFIG__` existente, renderizado por request pelo `MetaGenerator` (`server/utils/boot/keplerllmConfig.js`, `server/utils/boot/MetaGenerator.js`). Nenhum segundo mecanismo de runtime configuration é introduzido e nenhum valor raw de environment variable é exposto ao frontend.
+- A ativação exige as três condições: runtime config `safariIframeLinkFix === true`, app embedded (`window.self !== window.top`, cross-origin safe, sem nunca ler `window.top.location`/`window.parent.document`) e detecção de browser Safari/WebKit que nunca classifica Chrome/Edge/Firefox desktop normal como Safari.
+- A implementation relevante vive em `server/utils/helpers/parseBooleanEnv.js` (shared strict boolean parser), `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/safariIframeLinkFix.js` (event delegation, initializer idempotente com cleanup) e `frontend/src/main.jsx` (wiring de startup fora do React rendering/state).
+- Sem `allow-top-navigation`, sem patch de `history.pushState`, sem monkey-patch de `HTMLElement.prototype.click`, sem clicks sintéticos genéricos para buttons ou controles arbitrários, sem acesso ao parent DOM, sem mudança de Floating UI e sem upgrade de dependência não relacionada.
+
+#### Out of scope
+
+- Corrigir o browser bug do Safari/WebKit em si.
+- Modificar Directito, iframe sandbox attributes, CSP/CORS/COOP ou reverse proxy assumptions.
+- Substituir componentes `<Link>` ou aplicar patch no React Router.
 
 ## Appendix - Operational reference
 
@@ -715,6 +750,7 @@ Boolean flags usam uma convencao strict compartilhada: `true`/`1` (case-insensit
 | `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` | unset           | Quando definida como `true`/`1`, oculta a quick action Create an Agent apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. Os role checks existentes continuam valendo. Target route e Agent Skills permanecem disponíveis. |
 | `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` | unset          | Quando definida como `true`/`1`, oculta a quick action Edit Workspace apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. URLs diretas de workspace settings permanecem disponíveis. |
 | `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` | unset         | Quando definida como `true`/`1`, oculta a quick action Upload a Document apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. Drag-and-drop, pasted uploads, attachments, upload APIs e ingestion permanecem disponíveis. |
+| `KEPLERLLM_SAFARI_IFRAME_LINK_FIX` | unset (`false`) | Temporary Safari/WebKit cross-origin iframe link-click compatibility workaround. Quando definida como `true`/`1`, restaura physical clicks em anchors ordinários de navegação interna quando embedded cross-origin no Safari/WebKit. `false`/`0`/vazio/ausente/qualquer outro valor desabilita (comportamento existente). Não é authentication feature nem security boundary; não muda iframe permissions nem React Router. Desabilite quando o Safari/WebKit não mais exigir. Runtime-only, sem rebuild do frontend. |
 
 O deployment monta apenas:
 
@@ -833,6 +869,12 @@ DEFAULT_UI_LANGUAGE=pt
 ```
 
 Usado apenas quando não existe preferência explícita de idioma KeplerLLM (armazenada separadamente em `keplerllmExplicitUILanguage` quando o usuário muda o idioma pela UI). Deve corresponder a uma KeplerLLM locale key suportada (ex. `en`, `pt`, `es`, `fr`). `pt` seleciona a tradução Brazilian Portuguese existente. Apenas `i18nextLng` não é tratado como escolha explícita, de modo que o default também se aplica a usuários existentes que nunca selecionaram manualmente um idioma. Quando ausente e sem preferência explícita, a UI recorre ao browser language detection com fallback `en`; valores inválidos são ignorados com segurança. O valor é lido em container runtime através de `window.__KEPLERLLM_CONFIG__`, sem necessidade de rebuild do frontend no CapRover.
+
+Opcionalmente habilite o temporary Safari/WebKit cross-origin iframe link-click compatibility workaround (default desabilitado; não é authentication feature nem security boundary; não muda iframe permissions nem React Router; desabilite quando o Safari/WebKit não mais exigir; runtime-only sem rebuild do frontend):
+
+```text
+KEPLERLLM_SAFARI_IFRAME_LINK_FIX=true
+```
 
 Mantenha o named volume:
 
