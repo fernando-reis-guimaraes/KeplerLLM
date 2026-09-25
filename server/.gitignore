@@ -27,6 +27,8 @@ logs/server.log
 storage/lancedb
 public/
 __tests__/**/models
+__tests__/**/comkey/*
+__tests__/**/push-notifications/*
 
 # For legacy copies of repo
 documents
