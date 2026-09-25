@@ -10,6 +10,9 @@ const { PGVector } = require("../utils/vectorDbProviders/pgvector");
 const { NativeEmbedder } = require("../utils/EmbeddingEngines/native");
 const { getBaseLLMProviderModel } = require("../utils/helpers");
 const {
+  parseBooleanEnv,
+} = require("../utils/helpers/parseBooleanEnv");
+const {
   ConnectionStringParser,
 } = require("../utils/agents/aibitat/plugins/sql-agent/SQLConnectors/utils");
 
@@ -612,12 +615,17 @@ const SystemSettings = {
       // Compliance Settings
       // --------------------------------------------------------
       // Disable View Chat History for the whole instance.
-      DisableViewChatHistory:
-        "DISABLE_VIEW_CHAT_HISTORY" in process.env || false,
-      WorkspaceDeletionProtection:
-        "WORKSPACE_DELETION_PROTECTION" in process.env || false,
-      HideSettingsButtons:
-        "KEPLERLLM_HIDE_SETTINGS_BUTTONS" in process.env || false,
+      // KeplerLLM fork: strict boolean parsing. Only "true"/"1" enable;
+      // "false", "0", "", or any other value safely resolve to false.
+      DisableViewChatHistory: parseBooleanEnv(
+        process.env.DISABLE_VIEW_CHAT_HISTORY
+      ),
+      WorkspaceDeletionProtection: parseBooleanEnv(
+        process.env.WORKSPACE_DELETION_PROTECTION
+      ),
+      HideSettingsButtons: parseBooleanEnv(
+        process.env.KEPLERLLM_HIDE_SETTINGS_BUTTONS
+      ),
 
       // --------------------------------------------------------
       // Simple SSO Settings

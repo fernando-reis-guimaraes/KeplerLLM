@@ -459,18 +459,18 @@ Opcionalmente ocultar os Settings entry buttons para desencorajar acesso casual 
 
 #### Observable behavior
 
-- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta ausente, a UI segue exatamente o upstream behavior.
-- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta presente com qualquer valor (incluindo `false`), o gear de settings por workspace e o `Wrench` de entrada em Settings ficam ocultos, enquanto o botao `Back to workspaces` dentro de `/settings/*` permanece visivel. A presence semantics segue `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`.
+- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta ausente, vazia ou definida com qualquer valor diferente de `true`/`1`, a UI segue exatamente o upstream behavior.
+- Quando `KEPLERLLM_HIDE_SETTINGS_BUTTONS` esta definida como `true` ou `1` (case-insensitive, whitespace ao redor removido), o gear de settings por workspace e o `Wrench` de entrada em Settings ficam ocultos, enquanto o botao `Back to workspaces` dentro de `/settings/*` permanece visivel. A strict boolean semantics segue `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`: `true`/`1` habilita, enquanto `false`, `0`, vazio, ausente ou qualquer outro valor desabilita.
 - Apenas esses dois controles sao ocultados. Workspaces, uploads, threads, chat controls, footer icons e todas as outras acoes permanecem inalterados.
 - As Settings URLs diretas (`/settings/...`, `/workspace/:slug/settings/...`), routes e APIs continuam funcionando sem redirect, 403 ou access restriction.
-- Executar `showButtons()` no DevTools do browser revela ambos os controles imediatamente na tab atual sem reload. O override e apenas in-memory; um reload completo oculta novamente enquanto a environment variable estiver presente.
+- Executar `showButtons()` no DevTools do browser revela ambos os controles imediatamente na tab atual sem reload. O override e apenas in-memory; um reload completo oculta novamente enquanto a environment variable estiver definida como `true`/`1`.
 
 #### Rules and limits
 
 - Mudanca apenas de UI. Nao e um security boundary.
 - Apenas runtime server environment variable. Nao ha variavel build-time `VITE_*`, nem persistencia em database, nem UI toggle.
 - O server expoe `HideSettingsButtons` pelo mecanismo existente `SystemSettings.currentSettings()` / `/setup-complete` / `System.keys()`.
-- A implementation relevante esta em `server/models/systemSettings.js`, `frontend/src/hooks/useHideSettingsButtons.js`, `frontend/src/utils/settingsButtonsVisibility.js`, `frontend/src/components/SettingsButton/index.jsx` e `frontend/src/components/Sidebar/ActiveWorkspaces/index.jsx`.
+- A implementation relevante esta em `server/models/systemSettings.js`, `server/utils/helpers/parseBooleanEnv.js` (shared strict boolean parser), `frontend/src/hooks/useHideSettingsButtons.js`, `frontend/src/utils/settingsButtonsVisibility.js`, `frontend/src/components/SettingsButton/index.jsx` e `frontend/src/components/Sidebar/ActiveWorkspaces/index.jsx`.
 
 #### Out of scope
 
@@ -610,24 +610,22 @@ KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON
 KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON
 ```
 
-- A presence semantics segue `KEPLERLLM_HIDE_SETTINGS_BUTTONS`, `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`:
-  - Variável ausente -> normal existing behavior.
-  - Variável presente com qualquer valor -> oculta o UI element correspondente.
-  - Isso inclui valores como `true`, `1`, empty string ou até `false`.
-  - A presença é detectada com `in`, nunca por truthiness.
-- Quando `KEPLERLLM_HIDE_TOOLS_BUTTON` está presente, o Tools button visível no componente compartilhado `PromptInput` (`frontend/src/components/WorkspaceChat/ChatContainer/PromptInput/index.jsx`) não é renderizado. Isso vale em todos os lugares onde o componente compartilhado é renderizado, incluindo o prompt principal/home e o prompt do workspace chat. A implementação do ToolsMenu, o comportamento de teclado `/` que pode abrir o Tools menu, slash commands, Agent Skills, agent execution, MCP tools, APIs, backend capabilities, authorization e workspace configuration permanecem inalterados.
-- Quando `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` está presente, a quick action de `main-page.quickActions.createAgent` não é renderizada (`frontend/src/components/lib/QuickActions/index.jsx`). A visibilidade role-based existente é preservada, de modo que a visibilidade efetiva é a visibilidade upstream existente E não oculto pela runtime configuration. A target route e o comportamento de Agent Skills permanecem inalterados.
-- Quando `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` está presente, a quick action de `main-page.quickActions.editWorkspace` não é renderizada. Todas as condições existentes, incluindo o requisito de available workspace, role checks e navigation behavior, são preservadas. As URLs diretas de workspace settings e outras formas de alcançar as workspace settings permanecem inalteradas.
-- Quando `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` está presente, apenas a quick action de `main-page.quickActions.uploadDocument` não é renderizada. Drag-and-drop uploads, pasted file uploads, attachments no chat, upload APIs, document management e workspace document ingestion permanecem inalterados.
+- A strict boolean semantics segue `KEPLERLLM_HIDE_SETTINGS_BUTTONS`, `DISABLE_VIEW_CHAT_HISTORY` e `WORKSPACE_DELETION_PROTECTION`:
+  - Variável definida como `true` ou `1` (case-insensitive, whitespace ao redor removido) -> oculta o UI element correspondente.
+  - Variável ausente, vazia ou definida como `false`, `0` ou qualquer outro valor -> normal existing behavior.
+- Quando `KEPLERLLM_HIDE_TOOLS_BUTTON` está definida como `true` ou `1`, o Tools button visível no componente compartilhado `PromptInput` (`frontend/src/components/WorkspaceChat/ChatContainer/PromptInput/index.jsx`) não é renderizado. Isso vale em todos os lugares onde o componente compartilhado é renderizado, incluindo o prompt principal/home e o prompt do workspace chat. A implementação do ToolsMenu, o comportamento de teclado `/` que pode abrir o Tools menu, slash commands, Agent Skills, agent execution, MCP tools, APIs, backend capabilities, authorization e workspace configuration permanecem inalterados.
+- Quando `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` está definida como `true` ou `1`, a quick action de `main-page.quickActions.createAgent` não é renderizada (`frontend/src/components/lib/QuickActions/index.jsx`). A visibilidade role-based existente é preservada, de modo que a visibilidade efetiva é a visibilidade upstream existente E não oculto pela runtime configuration. A target route e o comportamento de Agent Skills permanecem inalterados.
+- Quando `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` está definida como `true` ou `1`, a quick action de `main-page.quickActions.editWorkspace` não é renderizada. Todas as condições existentes, incluindo o requisito de available workspace, role checks e navigation behavior, são preservadas. As URLs diretas de workspace settings e outras formas de alcançar as workspace settings permanecem inalteradas.
+- Quando `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` está definida como `true` ou `1`, apenas a quick action de `main-page.quickActions.uploadDocument` não é renderizada. Drag-and-drop uploads, pasted file uploads, attachments no chat, upload APIs, document management e workspace document ingestion permanecem inalterados.
 - Se a runtime configuration e/ou a lógica de permissão existente resultar em zero Quick Actions visíveis, todo o componente `QuickActions` não renderiza nada. Nenhum container vazio e nenhum espaçamento `mt-6` permanecem. Por exemplo, as três ações ocultas não renderizam o wrapper, enquanto apenas Upload Document visível renderiza o wrapper só com Upload Document.
-- Quando as quatro variáveis estão ausentes, a UI renderizada e o comportamento são idênticos à implementação atual do KeplerLLM.
+- Quando as quatro variáveis estão ausentes (ou definidas como `false`, `0`, vazias ou qualquer outro valor não habilitador), a UI renderizada e o comportamento são idênticos à implementação atual do KeplerLLM.
 
 #### Rules and limits
 
 - Mudança apenas de UI. Não são security boundaries. Direct routes, APIs e capabilities permanecem disponíveis.
 - Apenas runtime server environment variables. Não há variável build-time `VITE_*`, nem database migration, nem novos UI settings, nem persistent database configuration, nem route changes, nem authorization changes, nem API contract changes.
 - O server expõe apenas booleans normalizados (`hideToolsButton`, `hideCreateAgentButton`, `hideEditWorkspaceButton`, `hideUploadDocumentButton`) pelo bootstrap `window.__KEPLERLLM_CONFIG__` existente, renderizado por request pelo `MetaGenerator` (`server/utils/boot/keplerllmConfig.js`, `server/utils/boot/MetaGenerator.js`). Nenhum segundo mecanismo de runtime configuration é introduzido e nenhum valor raw de environment variable é exposto ao frontend.
-- A implementation relevante está em `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/keplerllmVisibility.js`, `frontend/src/hooks/useKeplerllmVisibility.js`, `frontend/src/components/WorkspaceChat/ChatContainer/PromptInput/index.jsx` e `frontend/src/components/lib/QuickActions/index.jsx`.
+- A implementation relevante está em `server/utils/helpers/parseBooleanEnv.js` (shared strict boolean parser), `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/keplerllmVisibility.js`, `frontend/src/hooks/useKeplerllmVisibility.js`, `frontend/src/components/WorkspaceChat/ChatContainer/PromptInput/index.jsx` e `frontend/src/components/lib/QuickActions/index.jsx`.
 - Exemplo de configuração operacional:
 
 ```env
@@ -659,6 +657,8 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 
 ### Runtime configuration
 
+Boolean flags usam uma convencao strict compartilhada: `true`/`1` (case-insensitive, whitespace ao redor removido) habilita, enquanto `false`/`0`/vazio/ausente/qualquer outro valor desabilita. A mera presenca de uma variavel nunca habilita um boolean feature.
+
 | Variable                       | Default               | Behavior                                                                                |
 | ------------------------------ | --------------------- | --------------------------------------------------------------------------------------- |
 | `STORAGE_DIR`                  | `/app/server/storage` | Standard storage volume. Guarda UI configuration e skill data. Ainda exigido com PostgreSQL. |
@@ -675,12 +675,12 @@ O fork acompanha um stable AnythingLLM baseline. O baseline atual é:
 | `DEFAULT_WORKSPACE_CHAT_COMPLETIONS_TEMPERATURE` | unset                | openAiTemp de bootstrap como number >= 0. Unset preserva o default. |
 | `DEFAULT_WORKSPACE_HISTORY`    | unset                 | openAiHistory de bootstrap como integer >= 0. Unset preserva o default. |
 | `DEFAULT_AGENT_SKILLS`         | unset                 | Bootstrap das opt-in Agent Skills como lista comma-separated. Unset preserva o upstream behavior. Empty string nao habilita nenhuma. Configuracao existente do DB nunca e sobrescrita. |
-| `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | Quando presente com qualquer valor, oculta os Settings entry buttons apenas na UI. URLs diretas continuam funcionando. |
+| `KEPLERLLM_HIDE_SETTINGS_BUTTONS` | unset              | Quando definida como `true`/`1`, oculta os Settings entry buttons apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. URLs diretas continuam funcionando. |
 | `DEFAULT_UI_LANGUAGE`          | unset                 | Idioma default da UI, usado apenas quando não existe preferência explícita KeplerLLM. Deve corresponder a uma locale key suportada (ex. `en`, `pt`, `es`, `fr`). `pt` seleciona o português brasileiro. Ausente recorre ao browser detection com fallback `en`; `i18nextLng` legado é ignorado na precedência e valores inválidos são ignorados. |
-| `KEPLERLLM_HIDE_TOOLS_BUTTON` | unset                 | Quando presente com qualquer valor, oculta o Tools button visível apenas na UI. ToolsMenu, comportamento `/` de teclado, slash commands, agents e APIs permanecem disponíveis. |
-| `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` | unset           | Quando presente com qualquer valor, oculta a quick action Create an Agent apenas na UI. Os role checks existentes continuam valendo. Target route e Agent Skills permanecem disponíveis. |
-| `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` | unset          | Quando presente com qualquer valor, oculta a quick action Edit Workspace apenas na UI. URLs diretas de workspace settings permanecem disponíveis. |
-| `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` | unset         | Quando presente com qualquer valor, oculta a quick action Upload a Document apenas na UI. Drag-and-drop, pasted uploads, attachments, upload APIs e ingestion permanecem disponíveis. |
+| `KEPLERLLM_HIDE_TOOLS_BUTTON` | unset                 | Quando definida como `true`/`1`, oculta o Tools button visível apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. ToolsMenu, comportamento `/` de teclado, slash commands, agents e APIs permanecem disponíveis. |
+| `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` | unset           | Quando definida como `true`/`1`, oculta a quick action Create an Agent apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. Os role checks existentes continuam valendo. Target route e Agent Skills permanecem disponíveis. |
+| `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` | unset          | Quando definida como `true`/`1`, oculta a quick action Edit Workspace apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. URLs diretas de workspace settings permanecem disponíveis. |
+| `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` | unset         | Quando definida como `true`/`1`, oculta a quick action Upload a Document apenas na UI. `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente. Drag-and-drop, pasted uploads, attachments, upload APIs e ingestion permanecem disponíveis. |
 
 O deployment monta apenas:
 
@@ -777,13 +777,13 @@ DEFAULT_AGENT_SKILLS=filesystem-agent,create-files-agent,create-chart,web-browsi
 
 Quando ausente, o upstream behavior e preservado. Uma empty string explicita nao habilita inicialmente nenhuma opt-in skill. Os valores aceitos sao `filesystem-agent`, `create-files-agent`, `create-chart`, `web-browsing`, `sql-agent` e `create-scheduled-job`. Um setting `default_agent_skills` existente no database nunca e sobrescrito; o database e source of truth apos a inicializacao. Identifiers invalidos falham o startup. O comportamento e identico em SQLite e PostgreSQL. Esta variavel nao controla as default-enabled skills representadas por `disabled_agent_skills`.
 
-Opcionalmente oculte os Settings entry buttons apenas na UI (as Settings URLs diretas permanecem acessiveis):
+Opcionalmente oculte os Settings entry buttons apenas na UI (as Settings URLs diretas permanecem acessiveis). Convencao boolean: `true`/`1` oculta, `false`/`0`/vazio/ausente/qualquer outro valor exibe normalmente:
 
 ```text
 KEPLERLLM_HIDE_SETTINGS_BUTTONS=1
 ```
 
-Opcionalmente oculte UI controls específicos apenas na UI (controles apenas de UI, não são security boundaries; direct routes, APIs e capabilities permanecem disponíveis; runtime-only sem rebuild do frontend; presence semantics com qualquer valor significando ocultar; variáveis ausentes preservam o comportamento existente):
+Opcionalmente oculte UI controls específicos apenas na UI (controles apenas de UI, não são security boundaries; direct routes, APIs e capabilities permanecem disponíveis; runtime-only sem rebuild do frontend; strict boolean semantics com apenas `true`/`1` significando ocultar; ausente, vazio, `false`, `0` ou qualquer outro valor preserva o comportamento existente):
 
 ```text
 KEPLERLLM_HIDE_TOOLS_BUTTON=true
