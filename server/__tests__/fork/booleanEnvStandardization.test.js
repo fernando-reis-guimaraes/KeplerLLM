@@ -34,17 +34,40 @@ const DISABLED = [
   "abc",
 ];
 
+// Restores the env after fn() completes. Awaits async callbacks so the env
+// is still set when their awaits resume (a bare `return fn()` would run the
+// restore as soon as the pending promise is returned). Sync callbacks keep
+// synchronous throw semantics.
 function withEnv(name, value, fn) {
   const had = name in process.env;
   const saved = process.env[name];
-  try {
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-    return fn();
-  } finally {
+  const restore = () => {
     if (had) process.env[name] = saved;
     else delete process.env[name];
+  };
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+  let result;
+  try {
+    result = fn();
+  } catch (error) {
+    restore();
+    throw error;
   }
+  if (result && typeof result.then === "function") {
+    return result.then(
+      (resolved) => {
+        restore();
+        return resolved;
+      },
+      (error) => {
+        restore();
+        throw error;
+      }
+    );
+  }
+  restore();
+  return result;
 }
 
 describe("strict boolean consistency matrix (second audit)", () => {

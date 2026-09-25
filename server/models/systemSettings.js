@@ -473,7 +473,13 @@ const SystemSettings = {
       MultiUserMode: await this.isMultiUserMode(),
       MemoryEnabled: await this.memoriesEnabled(),
       MemoryAutoExtraction: await this.memoryAutoExtractionSetting(),
-      DisableTelemetry: process.env.DISABLE_TELEMETRY || "false",
+      DisableTelemetry: String(
+        // KeplerLLM fork: normalized through the shared strict parser so the
+        // string API contract ("true"/"false", consumed by the frontend via
+        // `settings?.DisableTelemetry !== "true"`) always agrees with backend
+        // telemetry enforcement. Only "true"/"1" yield "true".
+        parseBooleanEnv(process.env.DISABLE_TELEMETRY)
+      ),
 
       // --------------------------------------------------------
       // Embedder Provider Selection Settings & Configs
