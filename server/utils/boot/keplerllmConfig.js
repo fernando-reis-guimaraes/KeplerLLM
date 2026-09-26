@@ -72,6 +72,18 @@ function resolveVisibilityFlags(env = process.env) {
   };
 }
 
+// KeplerLLM fork: temporary Safari/WebKit cross-origin iframe link-click
+// compatibility workaround. Strict boolean semantics shared with the
+// visibility flags: only "true" or "1" (case-insensitive, whitespace
+// trimmed) enable; unset, "", "false", "0", or any other value disable.
+// Default is disabled (opt-in). Only the normalized boolean is exposed to
+// the frontend (never the raw env value).
+const SAFARI_IFRAME_LINK_FIX_ENV = "KEPLERLLM_SAFARI_IFRAME_LINK_FIX";
+
+function resolveSafariIframeLinkFix(env = process.env) {
+  return parseBooleanEnv(env?.[SAFARI_IFRAME_LINK_FIX_ENV]);
+}
+
 // Inline boot script rendered by MetaGenerator before the app bundle.
 // JSON-escaped so an operator-provided label cannot break out of the
 // script element.
@@ -80,6 +92,7 @@ function keplerllmConfigScript(env = process.env) {
     modelDisplayName: resolveModelDisplayName(env),
     defaultUILanguage: resolveDefaultUILanguage(env),
     ...resolveVisibilityFlags(env),
+    safariIframeLinkFix: resolveSafariIframeLinkFix(env),
   }).replace(/</g, "\\u003c");
   return `<script>window.__KEPLERLLM_CONFIG__=${payload};</script>`;
 }
@@ -90,6 +103,7 @@ module.exports = {
   HIDE_CREATE_AGENT_BUTTON_ENV,
   HIDE_EDIT_WORKSPACE_BUTTON_ENV,
   HIDE_UPLOAD_DOCUMENT_BUTTON_ENV,
+  SAFARI_IFRAME_LINK_FIX_ENV,
   resolveModelDisplayName,
   resolveDefaultUILanguage,
   resolveHideToolsButton,
@@ -97,5 +111,6 @@ module.exports = {
   resolveHideEditWorkspaceButton,
   resolveHideUploadDocumentButton,
   resolveVisibilityFlags,
+  resolveSafariIframeLinkFix,
   keplerllmConfigScript,
 };
