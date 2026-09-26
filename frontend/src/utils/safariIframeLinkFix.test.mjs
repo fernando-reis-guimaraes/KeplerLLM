@@ -2,10 +2,6 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   isSafariWebKit,
-  isEmbedded,
-  isEligibleAnchor,
-  isEligibleMouseUpEvent,
-  shouldEnableSafariIframeLinkFix,
   initSafariIframeLinkFix,
   __resetSafariIframeLinkFixForTests,
 } from "./safariIframeLinkFix.js";
@@ -47,7 +43,6 @@ function makeAnchor({
   target = null,
   download = false,
   connected = true,
-  origin = ORIGIN,
   onClick = null,
 } = {}) {
   const attrs = {};
@@ -64,9 +59,6 @@ function makeAnchor({
     hasAttribute(name) {
       return name in attrs;
     },
-    setAttribute(name, value) {
-      attrs[name] = value;
-    },
     closest(selector) {
       if (selector === "a[href]" && "href" in attrs) return this;
       return null;
@@ -75,7 +67,6 @@ function makeAnchor({
       this.clickCount += 1;
       if (onClick) onClick();
     },
-    __origin: origin,
   };
   return anchor;
 }
@@ -140,6 +131,19 @@ function mouseUpEvent(target, overrides = {}) {
   };
 }
 
+function install(doc, win, sched, overrides = {}) {
+  return initSafariIframeLinkFix({
+    window: win,
+    document: doc,
+    config: { safariIframeLinkFix: true },
+    userAgent: SAFARI_UA,
+    vendor: SAFARI_VENDOR,
+    schedule: sched.schedule,
+    cancelSchedule: sched.cancelSchedule,
+    ...overrides,
+  });
+}
+
 beforeEach(() => {
   __resetSafariIframeLinkFixForTests();
 });
@@ -162,6 +166,13 @@ describe("isSafariWebKit detection", () => {
       false
     );
     assert.equal(isSafariWebKit({ userAgent: FIREFOX_UA, vendor: "" }), false);
+  });
+
+  it("a bare Safari token without Version or Apple vendor is not enough", () => {
+    assert.equal(
+      isSafariWebKit({ userAgent: "Mozilla/5.0 Safari/537.36", vendor: "" }),
+      false
+    );
   });
 });
 
@@ -187,15 +198,7 @@ describe("safariIframeLinkFix activation", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc, embedded: false });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     assert.equal(doc.listeners.mouseup.length, 0);
     // Even a mouseup must not schedule anything.
     const anchor = makeAnchor({});
@@ -208,65 +211,23 @@ describe("safariIframeLinkFix activation", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc, embedded: true });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
+    install(doc, win, sched, {
       userAgent: CHROME_UA,
       vendor: CHROME_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
     });
     assert.equal(doc.listeners.mouseup.length, 0);
   });
 
-  it("isEmbedded uses only cross-origin-safe identity comparison", () => {
+  it("activation is embedded state (self !== top), not a cross-origin check", () => {
+    // The runtime condition intentionally matches any embedded iframe via an
+    // identity comparison only; the feature remains opt-in for the known
+    // cross-origin deployment. Same-origin embedding therefore activates.
     const doc = makeDocument();
-    const embedded = makeWindow({ doc, embedded: true });
-    const topLevel = makeWindow({ doc, embedded: false });
-    assert.equal(isEmbedded(embedded), true);
-    assert.equal(isEmbedded(topLevel), false);
-  });
-
-  it("shouldEnableSafariIframeLinkFix requires flag + embedded + Safari", () => {
-    const embedded = makeWindow({ doc: makeDocument(), embedded: true });
-    const topLevel = makeWindow({ doc: makeDocument(), embedded: false });
-    assert.equal(
-      shouldEnableSafariIframeLinkFix({
-        config: { safariIframeLinkFix: true },
-        window: embedded,
-        userAgent: SAFARI_UA,
-        vendor: SAFARI_VENDOR,
-      }),
-      true
-    );
-    assert.equal(
-      shouldEnableSafariIframeLinkFix({
-        config: { safariIframeLinkFix: false },
-        window: embedded,
-        userAgent: SAFARI_UA,
-        vendor: SAFARI_VENDOR,
-      }),
-      false
-    );
-    assert.equal(
-      shouldEnableSafariIframeLinkFix({
-        config: { safariIframeLinkFix: true },
-        window: topLevel,
-        userAgent: SAFARI_UA,
-        vendor: SAFARI_VENDOR,
-      }),
-      false
-    );
-    assert.equal(
-      shouldEnableSafariIframeLinkFix({
-        config: { safariIframeLinkFix: true },
-        window: embedded,
-        userAgent: CHROME_UA,
-        vendor: CHROME_VENDOR,
-      }),
-      false
-    );
+    const win = makeWindow({ doc, embedded: true });
+    win.top = { sameOrigin: true };
+    const sched = makeScheduler();
+    install(doc, win, sched);
+    assert.equal(doc.listeners.mouseup.length, 1);
   });
 });
 
@@ -275,15 +236,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     assert.equal(doc.listeners.mouseup.length, 1);
     const anchor = makeAnchor({ href: "/workspace/abc" });
     doc.dispatch("mouseup", mouseUpEvent(anchor));
@@ -296,15 +249,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     const anchor = makeAnchor({ href: "/workspace/abc" });
     doc.dispatch("mouseup", mouseUpEvent(anchor));
     assert.equal(sched.pendingCount(), 1);
@@ -326,15 +271,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
       const win = makeWindow({ doc });
       const sched = makeScheduler();
       __resetSafariIframeLinkFixForTests();
-      initSafariIframeLinkFix({
-        window: win,
-        document: doc,
-        config: { safariIframeLinkFix: true },
-        userAgent: SAFARI_UA,
-        vendor: SAFARI_VENDOR,
-        schedule: sched.schedule,
-        cancelSchedule: sched.cancelSchedule,
-      });
+      install(doc, win, sched);
       const anchor = makeAnchor({ href: "/workspace/abc" });
       doc.dispatch("mouseup", mouseUpEvent(anchor, modifiers));
       assert.equal(sched.pendingCount(), 0);
@@ -349,15 +286,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
       const win = makeWindow({ doc });
       const sched = makeScheduler();
       __resetSafariIframeLinkFixForTests();
-      initSafariIframeLinkFix({
-        window: win,
-        document: doc,
-        config: { safariIframeLinkFix: true },
-        userAgent: SAFARI_UA,
-        vendor: SAFARI_VENDOR,
-        schedule: sched.schedule,
-        cancelSchedule: sched.cancelSchedule,
-      });
+      install(doc, win, sched);
       const anchor = makeAnchor({ href: "/workspace/abc" });
       doc.dispatch("mouseup", mouseUpEvent(anchor, { button }));
       assert.equal(sched.pendingCount(), 0);
@@ -370,23 +299,8 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     const anchor = makeAnchor({ href: "https://external.example.com/page" });
-    assert.equal(
-      isEligibleAnchor(anchor, {
-        origin: ORIGIN,
-        baseHref: `${ORIGIN}/`,
-      }),
-      false
-    );
     doc.dispatch("mouseup", mouseUpEvent(anchor));
     assert.equal(sched.pendingCount(), 0);
     sched.flush();
@@ -397,25 +311,13 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     for (const href of [
       "mailto:someone@example.com",
       "tel:+123456789",
       "javascript:void(0)",
     ]) {
       const anchor = makeAnchor({ href });
-      assert.equal(
-        isEligibleAnchor(anchor, { origin: ORIGIN, baseHref: `${ORIGIN}/` }),
-        false
-      );
       doc.dispatch("mouseup", mouseUpEvent(anchor));
     }
     assert.equal(sched.pendingCount(), 0);
@@ -425,15 +327,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     const anchor = makeAnchor({ href: "/workspace/abc", target: "_blank" });
     doc.dispatch("mouseup", mouseUpEvent(anchor));
     assert.equal(sched.pendingCount(), 0);
@@ -445,15 +339,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     const anchor = makeAnchor({ href: "/file.pdf", download: true });
     doc.dispatch("mouseup", mouseUpEvent(anchor));
     assert.equal(sched.pendingCount(), 0);
@@ -465,15 +351,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     const anchor = makeAnchor({ href: "/workspace/abc", connected: true });
     doc.dispatch("mouseup", mouseUpEvent(anchor));
     assert.equal(sched.pendingCount(), 1);
@@ -486,25 +364,9 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    const cleanupA = initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    const cleanupA = install(doc, win, sched);
     const addCallsAfterFirst = doc.addCalls;
-    const cleanupB = initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    const cleanupB = install(doc, win, sched);
     assert.equal(cleanupA, cleanupB);
     assert.equal(doc.addCalls, addCallsAfterFirst);
     assert.equal(doc.listeners.mouseup.length, 1);
@@ -518,15 +380,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     let clickDispatched = 0;
     const anchor = makeAnchor({
       href: "/workspace/abc",
@@ -553,15 +407,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     const anchor = makeAnchor({ href: "/workspace/abc" });
     const child = makeChildOf(anchor);
     doc.dispatch("mouseup", mouseUpEvent(child));
@@ -574,15 +420,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     const anchor = makeAnchor({ href: "/workspace/abc" });
     let prevented = false;
     const event = mouseUpEvent(anchor);
@@ -597,15 +435,7 @@ describe("safariIframeLinkFix fallback behavior", () => {
     const doc = makeDocument();
     const win = makeWindow({ doc });
     const sched = makeScheduler();
-    initSafariIframeLinkFix({
-      window: win,
-      document: doc,
-      config: { safariIframeLinkFix: true },
-      userAgent: SAFARI_UA,
-      vendor: SAFARI_VENDOR,
-      schedule: sched.schedule,
-      cancelSchedule: sched.cancelSchedule,
-    });
+    install(doc, win, sched);
     doc.dispatch("mouseup", mouseUpEvent({ closest: () => null }));
     doc.dispatch(
       "mouseup",
@@ -614,9 +444,5 @@ describe("safariIframeLinkFix fallback behavior", () => {
       })
     );
     assert.equal(sched.pendingCount(), 0);
-    assert.equal(
-      isEligibleMouseUpEvent({ button: 0, defaultPrevented: true }),
-      false
-    );
   });
 });

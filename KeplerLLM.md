@@ -699,7 +699,7 @@ Resolve every environment variable whose value genuinely represents a boolean th
 
 #### Objective
 
-Restore physical link clicks when KeplerLLM is embedded in a cross-origin iframe in Safari/WebKit, without redesigning routing, iframe architecture, or authentication.
+Restore physical link clicks when KeplerLLM is embedded in an iframe in Safari/WebKit, without redesigning routing, iframe architecture, or authentication. The feature is intended for the known cross-origin deployment.
 
 #### Observable behavior
 
@@ -710,7 +710,7 @@ KEPLERLLM_SAFARI_IFRAME_LINK_FIX=true
 ```
 
 - Strict boolean semantics match the other KeplerLLM flags: `true`/`1` (case-insensitive, surrounding whitespace trimmed) enable; `false`, `0`, empty, unset, `null`, or any other value disable. Default is disabled.
-- When enabled and the app is embedded cross-origin in Safari/WebKit, a physical `mouseup` on an ordinary internal navigation anchor schedules a next-task (`setTimeout(..., 0)`) fallback. If Safari dispatches the native `click` for the same anchor first, the fallback is cancelled; otherwise `anchor.click()` is called once. A healthy native click therefore yields exactly one navigation, including on Safari versions where the bug does not exist or a future version where Apple fixes it.
+- When enabled and the app is embedded (`window.self !== window.top`) in Safari/WebKit, a physical `mouseup` on an ordinary internal navigation anchor schedules a next-task (`setTimeout(..., 0)`) fallback. If Safari dispatches the native `click` for the same anchor first, the fallback is cancelled; otherwise `anchor.click()` is called once. A healthy native click therefore yields exactly one navigation, including on Safari versions where the bug does not exist or a future version where Apple fixes it.
 - Only ordinary internal KeplerLLM navigation anchors are eligible (primary button, no modifier keys, not default-prevented, still connected, same-origin `http(s)` href, target absent/empty/`_self`, no `download` attribute). External links, `target="_blank"`, downloads, `mailto:`/`tel:`/`javascript:` URLs, middle/right click, Cmd/Ctrl/Shift/Alt-click, buttons, inputs, and arbitrary elements never receive a synthesized click. The physical `mouseup` is never `preventDefault()`-ed; the existing anchor and React Router behavior remain the source of truth.
 - With `KEPLERLLM_SAFARI_IFRAME_LINK_FIX=false` (or unset/empty/any non-enabling value), behavior is exactly the existing behavior with no compatibility listener active.
 - No frontend rebuild is required; the operator disables the workaround by changing the environment variable and restarting/redeploying. Remove the flag entirely when Safari/WebKit no longer requires it.
@@ -719,7 +719,7 @@ KEPLERLLM_SAFARI_IFRAME_LINK_FIX=true
 
 - Temporary compatibility workaround only. It is not an authentication feature, not a security boundary, does not change iframe permissions, sandboxing, CSP/CORS/COOP, Directito, reverse proxy configuration, React Router, or navigation semantics.
 - Runtime server environment variable only. The server exposes only the normalized boolean `safariIframeLinkFix` through the existing `window.__KEPLERLLM_CONFIG__` bootstrap rendered per request by `MetaGenerator` (`server/utils/boot/keplerllmConfig.js`, `server/utils/boot/MetaGenerator.js`). No second runtime configuration mechanism is introduced and no raw environment variable value is exposed to the frontend.
-- Activation requires all three conditions: runtime config `safariIframeLinkFix === true`, embedded app (`window.self !== window.top`, cross-origin safe, never reading `window.top.location`/`window.parent.document`), and Safari/WebKit browser detection that never classifies normal desktop Chrome/Edge/Firefox as Safari.
+- Activation requires all three conditions: runtime config `safariIframeLinkFix === true`, embedded app (`window.self !== window.top` identity comparison only, so any embedded iframe matches and no parent DOM is ever read), and Safari/WebKit browser detection that never classifies normal desktop Chrome/Edge/Firefox as Safari.
 - Relevant implementation lives in `server/utils/helpers/parseBooleanEnv.js` (shared strict boolean parser), `server/utils/boot/keplerllmConfig.js`, `frontend/src/utils/safariIframeLinkFix.js` (event delegation, idempotent initializer with cleanup), and `frontend/src/main.jsx` (startup wiring outside React rendering/state).
 - No `allow-top-navigation`, no `history.pushState` patching, no `HTMLElement.prototype.click` monkey-patch, no generic synthetic clicks for buttons or arbitrary controls, no parent DOM access, no Floating UI change, no unrelated dependency upgrade.
 
@@ -767,7 +767,7 @@ Boolean flags use one shared strict convention: `true`/`1` (case-insensitive, su
 | `KEPLERLLM_HIDE_CREATE_AGENT_BUTTON` | unset           | When set to `true`/`1`, hide the Create an Agent quick action in the UI only. `false`/`0`/empty/unset/any other value shows it normally. Existing role checks still apply. Target route and Agent Skills behavior remain available. |
 | `KEPLERLLM_HIDE_EDIT_WORKSPACE_BUTTON` | unset          | When set to `true`/`1`, hide the Edit Workspace quick action in the UI only. `false`/`0`/empty/unset/any other value shows it normally. Direct workspace settings URLs remain available. |
 | `KEPLERLLM_HIDE_UPLOAD_DOCUMENT_BUTTON` | unset         | When set to `true`/`1`, hide the Upload a Document quick action in the UI only. `false`/`0`/empty/unset/any other value shows it normally. Drag-and-drop, pasted uploads, attachments, upload APIs, and ingestion remain available. |
-| `KEPLERLLM_SAFARI_IFRAME_LINK_FIX` | unset (`false`) | Temporary Safari/WebKit cross-origin iframe link-click compatibility workaround. When set to `true`/`1`, restores physical clicks on ordinary internal navigation anchors when embedded cross-origin in Safari/WebKit. `false`/`0`/empty/unset/any other value disables (existing behavior). Not an authentication feature or security boundary; does not change iframe permissions or React Router. Disable when Safari/WebKit no longer requires it. Runtime-only, no frontend rebuild needed. |
+| `KEPLERLLM_SAFARI_IFRAME_LINK_FIX` | unset (`false`) | Temporary Safari/WebKit embedded-iframe link-click compatibility workaround, intended for the cross-origin deployment. When set to `true`/`1`, restores physical clicks on ordinary internal navigation anchors when embedded (`window.self !== window.top`) in Safari/WebKit. `false`/`0`/empty/unset/any other value disables (existing behavior). Not an authentication feature or security boundary; does not change iframe permissions or React Router. Disable when Safari/WebKit no longer requires it. Runtime-only, no frontend rebuild needed. |
 
 The deployment mounts only:
 
