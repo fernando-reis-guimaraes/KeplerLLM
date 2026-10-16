@@ -7,16 +7,21 @@ Plus Jakarta Sans variable font.
 
 Reference geometry is measured from the last upstream wordmark assets
 (git show 54cad69d^:frontend/public/anything-llm-dark.png, 704x99):
-  - canvas 704x99, icon occupies x 0..105, 24px gap, text starts x=130
-  - text bbox y 20..97 (cap height ~77px incl. descenders of 'y'/'g')
+  - canvas 704x99; icon preserved verbatim from the matching variant
+    (crop x 0..111, i.e. icon_end=106 plus 5px margin)
+  - text drawn with anchor='lt' at text_start=129, orig_top=19
   - dark variant color (34,38,40); light variant pure white
-  - 2x wordmark (open-computer) is exactly 1396x198, same layout scaled 2x
+  - 2x wordmark (open-computer, 1396x198): size 172, stroke 4,
+    icon_end=209, text_start=257, orig_top=38 (measured upstream)
 
-Calibration: at PlusJakartaSans Bold size 78 the reference string
-'AnythingLLM' renders 558px wide; TRACK_1X pads it to exactly 568px
-(the original text width). The same size/tracking renders 'KeplerLLM'
-proportionally narrower (~same footprint as the previous Kepler wordmark,
-ending near x=600 on the 704px canvas, which keeps existing CSS layout).
+Rendering recipe (inherited from the validated KeplerLLM rebrand, session
+'ses_f32adb7a3ffecN0Q2mp1tH8yxX': PlusJakartaSans Regular at size 86 with
+stroke_width=2 -- the look the owner already approved as 'muito bom'.
+Only two things changed vs that recipe: the text is monochrome
+'KeplerLLM' (AnythingLLM pattern: same color for Name+LLM) instead of
+two-color 'Kepler'+blue-'LLM', and the weight comes from the stroke
+rather than the Bold variation, so glyph shapes match the approved
+assets exactly.
 
 Outputs (3 distinct pixel contents, copied to all 11 branded paths):
   - dark text  -> *-dark.png, *-invert.png
@@ -46,13 +51,18 @@ FONT_PATH = ROOT / "frontend/public/fonts/PlusJakartaSans.ttf"
 REF_COMMIT = "54cad69d^"  # last upstream (AnythingLLM) wordmark assets
 
 TEXT = "KeplerLLM"
-REFERENCE_TEXT = "AnythingLLM"  # used only to calibrate tracking
-WEIGHT = 700  # Bold
-SIZE_1X = 78
-TEXT_X_1X = 130
-TEXT_Y_1X = 20
+SIZE_1X = 86
+STROKE_1X = 2
+ICON_END_1X = 106
+TEXT_X_1X = 129
+TEXT_Y_1X = 19  # orig_top
 CANVAS_1X = (704, 99)
-SCALE_2X = 2
+SIZE_2X = 172
+STROKE_2X = 4
+ICON_END_2X = 209
+TEXT_X_2X = 257
+TEXT_Y_2X = 38
+CANVAS_2X = (1396, 198)
 
 DARK = (34, 38, 40, 255)
 WHITE = (255, 255, 255, 255)
@@ -83,84 +93,59 @@ def git_show_to_image(ref_path: str) -> Image.Image:
 
 
 def load_font(size: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT_PATH), size)
-    font.set_variation_by_axes([WEIGHT])
-    return font
+    # Regular weight + stroke (validated recipe); no variation axes.
+    return ImageFont.truetype(str(FONT_PATH), size)
 
 
-def calibrate_tracking(font: ImageFont.FreeTypeFont, target_width: int) -> float:
-    widths = [font.getlength(c) for c in REFERENCE_TEXT]
-    return (target_width - sum(widths)) / (len(REFERENCE_TEXT) - 1)
-
-
-def render_text(text: str, font: ImageFont.FreeTypeFont, track: float,
-                color: tuple) -> Image.Image:
-    widths = [font.getlength(c) for c in text]
-    total = int(round(sum(widths) + track * (len(text) - 1)))
-    ascent, descent = font.getmetrics()
-    img = Image.new("RGBA", (total + 40, ascent + descent + 40), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    x = 20.0
-    for ch, w in zip(text, widths):
-        draw.text((x, 20), ch, font=font, fill=color)
-        x += w + track
-    bbox = img.getbbox()
-    assert bbox, "rendered text is empty"
-    return img.crop(bbox)
-
-
-def recolor_alpha(alpha_source: Image.Image, color: tuple) -> Image.Image:
-    """Keep the reference alpha channel, paint it with a flat color."""
-    solid = Image.new("RGBA", alpha_source.size, color)
-    solid.putalpha(alpha_source.split()[3])
-    return solid
-
-
-def build_wordmark(ref_dark: Image.Image, ref_2x: Image.Image,
-                   color: tuple, scale: int) -> Image.Image:
-    if scale == 1:
-        ref, size, tx, ty = ref_dark, SIZE_1X, TEXT_X_1X, TEXT_Y_1X
-        canvas_size = CANVAS_1X
-        target_width = 568  # measured original 'AnythingLLM' text width
-        icon = ref.crop((0, 0, 130, ref.size[1]))
-    else:
-        # NOTE: the 2x asset is not exactly 2x the 1x canvas (1396 vs 1408
-        # wide); geometry below is measured from the upstream 2x asset.
-        ref, size = ref_2x, SIZE_1X * SCALE_2X
-        tx, ty = 260, 42
-        canvas_size = (1396, 198)
-        target_width = 1123  # measured original 'AnythingLLM' text width
-        icon = ref.crop((0, 0, 260, ref.size[1]))
+def build_wordmark(ref_image: Image.Image, color: tuple, *, size: int,
+                   stroke: int, icon_end: int, text_x: int, text_y: int,
+                   ) -> Image.Image:
+    w, h = ref_image.size
     font = load_font(size)
-    track = calibrate_tracking(font, target_width)
-    text = render_text(TEXT, font, track, color)
-    canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
-    canvas.alpha_composite(recolor_alpha(icon, color), (0, 0))
-    canvas.alpha_composite(text, (tx, ty))
+    canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    # Icon pixels preserved verbatim from the matching upstream variant.
+    canvas.alpha_composite(ref_image.crop((0, 0, icon_end + 5, h)), (0, 0))
+    tmp = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
+    full = tmp.textbbox((0, 0), TEXT, font=font, stroke_width=stroke,
+                        anchor="lt")
+    first = tmp.textbbox((0, 0), TEXT[0], font=font, stroke_width=stroke,
+                         anchor="lt")
+    draw = ImageDraw.Draw(canvas)
+    draw.text((text_x - first[0], text_y - full[1]), TEXT, font=font,
+              fill=color, stroke_width=stroke, stroke_fill=color,
+              anchor="lt")
     return canvas
 
 
 def main() -> int:
     ref_dark = git_show_to_image("frontend/public/anything-llm-dark.png")
+    ref_light = git_show_to_image("frontend/public/anything-llm-light.png")
     ref_2x = git_show_to_image(
         "open-computer/services/public/anythingllm-wordmark.png")
     assert ref_dark.size == CANVAS_1X, ref_dark.size
-    assert ref_2x.size == (1396, 198), ref_2x.size
+    assert ref_2x.size == CANVAS_2X, ref_2x.size
 
     # Sanity: reference text region must match the documented geometry.
-    text_area = ref_dark.crop((130, 0, 704, 99))
-    assert text_area.getbbox() == (0, 20, 568, 97), text_area.getbbox()
+    text_area = ref_dark.crop((129, 0, 704, 99))
+    assert text_area.getbbox() == (0, 20, 569, 97), text_area.getbbox()
 
-    dark = build_wordmark(ref_dark, ref_2x, DARK, scale=1)
-    light = build_wordmark(ref_dark, ref_2x, WHITE, scale=1)
-    wordmark = build_wordmark(ref_dark, ref_2x, WHITE, scale=SCALE_2X)
+    dark = build_wordmark(ref_dark, DARK, size=SIZE_1X, stroke=STROKE_1X,
+                          icon_end=ICON_END_1X, text_x=TEXT_X_1X,
+                          text_y=TEXT_Y_1X)
+    light = build_wordmark(ref_light, WHITE, size=SIZE_1X, stroke=STROKE_1X,
+                           icon_end=ICON_END_1X, text_x=TEXT_X_1X,
+                           text_y=TEXT_Y_1X)
+    wordmark = build_wordmark(ref_2x, WHITE, size=SIZE_2X, stroke=STROKE_2X,
+                              icon_end=ICON_END_2X, text_x=TEXT_X_2X,
+                              text_y=TEXT_Y_2X)
 
     assert dark.size == CANVAS_1X and light.size == CANVAS_1X
-    assert wordmark.size == (1396, 198), wordmark.size
+    assert wordmark.size == CANVAS_2X, wordmark.size
     # KeplerLLM (9 chars) renders proportionally narrower than the 11-char
-    # reference; its right edge must land near x=600 (bbox is crop-relative).
-    right = light.crop((130, 0, 704, 99)).getbbox()[2]
-    assert 430 <= right <= 510, right
+    # upstream text; its right edge must land near x=600 (like its
+    # predecessor) so existing CSS layout is preserved.
+    right = light.crop((129, 0, 704, 99)).getbbox()[2]
+    assert 420 <= right <= 520, right
 
     for rel in DARK_TEXT_PATHS:
         dark.save(ROOT / rel)
