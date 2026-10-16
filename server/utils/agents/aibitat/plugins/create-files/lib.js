@@ -313,8 +313,8 @@ class CreateFilesManager {
     // Does not honor Whitelabeling changes/preferences right now.
     const assetsPath = path.join(__dirname, "assets");
     const filename = forDarkBackground
-      ? "anything-llm.png"
-      : "anything-llm-invert.png";
+      ? "kepler-llm.png"
+      : "kepler-llm-invert.png";
     try {
       if (format === "dataUri") {
         const base64 = fsSync.readFileSync(

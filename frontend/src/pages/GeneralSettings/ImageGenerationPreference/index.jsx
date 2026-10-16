@@ -3,7 +3,7 @@ import Sidebar from "@/components/SettingsSidebar";
 import { isMobile } from "react-device-detect";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
-import AnythingLLMIcon from "@/media/logo/anything-llm-icon.png";
+import AnythingLLMIcon from "@/media/logo/kepler-llm-icon.png";
 import OpenAiLogo from "@/media/llmprovider/openai.png";
 import OllamaLogo from "@/media/llmprovider/ollama.png";
 import LemonadeLogo from "@/media/llmprovider/lemonade.png";

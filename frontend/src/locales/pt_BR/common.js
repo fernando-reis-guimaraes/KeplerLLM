@@ -786,7 +786,7 @@ const TRANSLATIONS = {
         "max-per-turn": {
           title: "Número máximo de perguntas por turno",
           description:
-            "Quantas perguntas de esclarecimento o agente pode fazer em uma única pesquisa.",
+            "Qual o número de perguntas de esclarecimento que o agente pode fazer em uma única pesquisa.",
         },
       },
     },

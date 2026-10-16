@@ -206,8 +206,8 @@ Present KeplerLLM as the product name everywhere the user can see it, while keep
 
 - Text-only change. Package names, imports, identifiers, file paths, storage keys, localStorage keys, API routes, request/response contracts, provider slugs (including `anythingllm-router`), and integration header tokens remain unchanged. Functional upstream service endpoints stay on their original URLs.
 - Functional service integrations keep working: model downloads from the upstream CDN, Community Hub imports and profile links, and the Docker Chromium download stay on upstream endpoints.
-- Logo filenames, file paths, canvas sizes, transparency, and infinity icon pixels remain unchanged for upstream compatibility; only wordmark text pixels changed to KeplerLLM (`Kepler` in `#FFFFFF` or `#222628`, `LLM` in `#2E90FA`, Plus Jakarta Sans). Icon-only assets (`anything-llm-icon.png`, `anything-llm-infinity.png`, favicons) are unchanged. `frontend/dist/` logos are generated build output and regenerate on build.
-- Rebranded wordmark files: `frontend/src/media/logo/anything-llm.png`, `frontend/src/media/logo/anything-llm-dark.png`, `frontend/public/anything-llm-light.png`, `frontend/public/anything-llm-dark.png`, `server/storage/assets/anything-llm.png`, `server/storage/assets/anything-llm-invert.png`, `server/utils/agents/aibitat/plugins/create-files/assets/anything-llm.png`, `server/utils/agents/aibitat/plugins/create-files/assets/anything-llm-invert.png`, `open-computer/services/public/anythingllm-wordmark.png`, plus submodule files `embed/src/assets/anything-llm-dark.png` and `browser-extension/src/media/anything-llm.png`. Upgrade note: upstream logo updates will conflict; re-apply the KeplerLLM wordmark rendering when merging.
+- Logo canvas sizes, transparency, and infinity icon pixels remain unchanged; only wordmark text pixels changed to KeplerLLM (`Kepler` in `#FFFFFF` or `#222628`, `LLM` in `#2E90FA`, Plus Jakarta Sans). Icon-only assets (`kepler-llm-icon.png`, `kepler-llm-infinity.png`, favicons) are unchanged. `frontend/dist/` logos are generated build output and regenerate on build. Asset filenames were renamed from `anything-llm*` to `kepler-llm*` (and `anythingllm-wordmark.png` to `keplerllm-wordmark.png`) via `git mv`; only references were updated in this change, pixels regenerate deterministically in a follow-up (rasterized wordmark pixels still show the previous wordmark until then). `images/wordmark.png` path is kept in this change; deterministic logo comes in follow-up.
+- Rebranded wordmark files: `frontend/src/media/logo/kepler-llm.png`, `frontend/src/media/logo/kepler-llm-dark.png`, `frontend/public/kepler-llm-light.png`, `frontend/public/kepler-llm-dark.png`, `server/storage/assets/kepler-llm.png`, `server/storage/assets/kepler-llm-invert.png`, `server/utils/agents/aibitat/plugins/create-files/assets/kepler-llm.png`, `server/utils/agents/aibitat/plugins/create-files/assets/kepler-llm-invert.png`, `open-computer/services/public/keplerllm-wordmark.png`, plus submodule files `embed/src/assets/kepler-llm-dark.png` and `browser-extension/src/media/kepler-llm.png`. Upgrade note: upstream logo updates will conflict; re-apply the KeplerLLM wordmark rendering when merging.
 - The embed widget and the browser extension live in forked repositories (`frginbox/KeplerLLM_Embed`, `frginbox/KeplerLLM_Browser-Extension`, with personal forks under `fernando-reis-guimaraes/`), wired as git submodules. Their committed widget build under `frontend/public/embed/` is regenerated from the forked embed source.
 - There are no product email templates in the codebase; the rule applies to bot and notification messages instead.
 
@@ -728,6 +728,30 @@ KEPLERLLM_SAFARI_IFRAME_LINK_FIX=true
 - Fixing the Safari/WebKit browser bug itself.
 - Modifying Directito, iframe sandbox attributes, CSP/CORS/COOP, or reverse proxy assumptions.
 - Replacing `<Link>` components or patching React Router.
+
+### Requirement 17 - Product rename to KeplerLLM
+
+#### Objective
+
+Remove the previous product-name association while keeping behavior identical. The fork is now KeplerLLM.
+
+#### Observable behavior
+
+- All product-name strings, identifiers, environment variables, file names, and documentation now use the KeplerLLM pattern (`KeplerLLM`, `keplerllm`, `KEPLERLLM`, `Kepler`, `kepler`, `KEPLER`). A case-insensitive search for the previous product-name substring returns empty in tracked files. The Portuguese interrogative for count was rephrased to avoid the old substring without changing meaning.
+- Specification and task files were renamed via `git mv` to the current `KeplerLLM.md`, `KeplerLLM.pt-BR.md`, `KeplerLLM-TODO.md`, and `KeplerLLM-TODO.pt-BR.md` names. Code visibility/config files and legacy-overlay branding/entrypoint files were renamed the same way to the current `Keplerllm`/`keplerllm` names.
+- Media assets were renamed via `git mv` without redrawing pixels: `anything-llm-dark.png`, `anything-llm-light.png`, `anything-llm.png`, `anything-llm-icon.png`, `anything-llm-infinity.png`, `anything-llm-invert.png` to `kepler-llm-*`, and `anythingllm-wordmark.png` to `keplerllm-wordmark.png`. All references were updated. Upstream `mintplex-labs/anything-llm` URLs and other upstream `anythingllm`/`anything-llm` strings are kept.
+- `images/wordmark.png` path is kept in this change; deterministic logo regeneration comes in a follow-up. PNGs with rasterized wordmark text need regenerated pixels.
+
+#### Rules and limits
+
+- `.gitmodules` already pointed to `KeplerLLM_*` and is untouched. `browser-extension/` and `embed/` checkouts are empty and untouched.
+- `cr.umapps.net` registry host is kept; only the service/image suffix changed to `keplerllm` in `cr.umapps.net/compose.yaml`.
+- History is not rewritten in this change; a later `filter-repo` purge is planned.
+
+#### Out of scope
+
+- Deterministic PIL logo regeneration (follow-up).
+- Rewriting git history (follow-up).
 
 ## Appendix - Operational reference
 

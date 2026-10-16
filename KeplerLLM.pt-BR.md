@@ -206,8 +206,8 @@ Apresentar o KeplerLLM como product name em todos os lugares visíveis ao user, 
 
 - Mudança apenas de texto. Package names, imports, identifiers, file paths, storage keys, localStorage keys, API routes, request/response contracts, provider slugs (incluindo `anythingllm-router`) e integration header tokens permanecem inalterados. Os functional upstream service endpoints permanecem em suas URLs originais.
 - As functional service integrations continuam funcionando: model downloads do upstream CDN, Community Hub imports e profile links, e o Docker Chromium download permanecem nos upstream endpoints.
-- Os logo filenames, file paths, canvas sizes, transparência e pixels do infinity icon permanecem inalterados para compatibilidade com o upstream; apenas os pixels do wordmark foram alterados para KeplerLLM (`Kepler` em `#FFFFFF` ou `#222628`, `LLM` em `#2E90FA`, Plus Jakarta Sans). Os assets apenas com ícone (`anything-llm-icon.png`, `anything-llm-infinity.png`, favicons) permanecem inalterados. Os logos em `frontend/dist/` são build output gerado e são regenerados no build.
-- Arquivos de wordmark com rebrand: `frontend/src/media/logo/anything-llm.png`, `frontend/src/media/logo/anything-llm-dark.png`, `frontend/public/anything-llm-light.png`, `frontend/public/anything-llm-dark.png`, `server/storage/assets/anything-llm.png`, `server/storage/assets/anything-llm-invert.png`, `server/utils/agents/aibitat/plugins/create-files/assets/anything-llm.png`, `server/utils/agents/aibitat/plugins/create-files/assets/anything-llm-invert.png`, `open-computer/services/public/anythingllm-wordmark.png`, além dos arquivos de submodule `embed/src/assets/anything-llm-dark.png` e `browser-extension/src/media/anything-llm.png`. Nota de upgrade: updates de logo no upstream vão conflitar; reaplicar a renderização do wordmark KeplerLLM ao fazer merge.
+- Os logo canvas sizes, transparência e pixels do infinity icon permanecem inalterados; apenas os pixels do wordmark foram alterados para KeplerLLM (`Kepler` em `#FFFFFF` ou `#222628`, `LLM` em `#2E90FA`, Plus Jakarta Sans). Os assets apenas com ícone (`kepler-llm-icon.png`, `kepler-llm-infinity.png`, favicons) permanecem inalterados. Os logos em `frontend/dist/` são build output gerado e são regenerados no build. Os asset filenames foram renomeados de `anything-llm*` para `kepler-llm*` (e `anythingllm-wordmark.png` para `keplerllm-wordmark.png`) via `git mv`; apenas as referências foram atualizadas nesta mudança, os pixels serão regenerados de forma determinística em follow-up (os pixels rasterizados do wordmark ainda mostram o wordmark anterior até lá). O path `images/wordmark.png` é mantido nesta mudança; o logo determinístico vem em follow-up.
+- Arquivos de wordmark com rebrand: `frontend/src/media/logo/kepler-llm.png`, `frontend/src/media/logo/kepler-llm-dark.png`, `frontend/public/kepler-llm-light.png`, `frontend/public/kepler-llm-dark.png`, `server/storage/assets/kepler-llm.png`, `server/storage/assets/kepler-llm-invert.png`, `server/utils/agents/aibitat/plugins/create-files/assets/kepler-llm.png`, `server/utils/agents/aibitat/plugins/create-files/assets/kepler-llm-invert.png`, `open-computer/services/public/keplerllm-wordmark.png`, além dos arquivos de submodule `embed/src/assets/kepler-llm-dark.png` e `browser-extension/src/media/kepler-llm.png`. Nota de upgrade: updates de logo no upstream vão conflitar; reaplicar a renderização do wordmark KeplerLLM ao fazer merge.
 - O embed widget e a browser extension vivem em repositórios forked (`frginbox/KeplerLLM_Embed`, `frginbox/KeplerLLM_Browser-Extension`, com personal forks sob `fernando-reis-guimaraes/`), conectados como git submodules. Seu committed widget build sob `frontend/public/embed/` é regenerado a partir do forked embed source.
 - Não existem product email templates no codebase; a regra se aplica às bot and notification messages.
 
@@ -711,6 +711,30 @@ KEPLERLLM_SAFARI_IFRAME_LINK_FIX=true
 - Corrigir o browser bug do Safari/WebKit em si.
 - Modificar Directito, iframe sandbox attributes, CSP/CORS/COOP ou reverse proxy assumptions.
 - Substituir componentes `<Link>` ou aplicar patch no React Router.
+
+### Requirement 17 - Product rename para KeplerLLM
+
+#### Objective
+
+Remover a associação do nome anterior mantendo o comportamento idêntico. O fork agora é KeplerLLM.
+
+#### Observable behavior
+
+- Todas as strings de product-name, identifiers, environment variables, file names e documentation agora usam o padrão KeplerLLM (`KeplerLLM`, `keplerllm`, `KEPLERLLM`, `Kepler`, `kepler`, `KEPLER`). Uma busca case-insensitive pelo substring do nome anterior retorna vazio nos tracked files. A interrogativa em português para contagem foi reescrita para evitar o substring antigo sem mudar o sentido.
+- Os arquivos de specification e tasks foram renomeados via `git mv` para os nomes atuais `KeplerLLM.md`, `KeplerLLM.pt-BR.md`, `KeplerLLM-TODO.md` e `KeplerLLM-TODO.pt-BR.md`. Os code files de visibility/config e os arquivos de branding/entrypoint do legacy-overlay foram renomeados da mesma forma para os nomes atuais `Keplerllm`/`keplerllm`.
+- Os media assets foram renomeados via `git mv` sem redesenhar pixels: `anything-llm-dark.png`, `anything-llm-light.png`, `anything-llm.png`, `anything-llm-icon.png`, `anything-llm-infinity.png`, `anything-llm-invert.png` para `kepler-llm-*`, e `anythingllm-wordmark.png` para `keplerllm-wordmark.png`. Todas as referências foram atualizadas. As URLs upstream `mintplex-labs/anything-llm` e outras strings upstream `anythingllm`/`anything-llm` são mantidas.
+- O path `images/wordmark.png` é mantido nesta mudança; a regeneração determinística do logo vem em follow-up. Os PNGs com wordmark text rasterizado precisam de pixels regenerados.
+
+#### Rules and limits
+
+- O `.gitmodules` já apontava para `KeplerLLM_*` e não foi mexido. Os checkouts `browser-extension/` e `embed/` estão vazios e não foram tocados.
+- O registry host `cr.umapps.net` é mantido; apenas o sufixo service/image mudou para `keplerllm` em `cr.umapps.net/compose.yaml`.
+- O histórico não é reescrito nesta mudança; um purge via `filter-repo` está planejado para depois.
+
+#### Out of scope
+
+- Regeneração determinística do logo via PIL (follow-up).
+- Reescrita do git history (follow-up).
 
 ## Appendix - Operational reference
 
